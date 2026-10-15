@@ -121,19 +121,52 @@ pip install -r requirements.txt
 2. 编辑 `config/private_work.json` 填入您的内网域名、IP 和 Nameserver；
 3. `config/private_work.json` 已被 Git 严密忽略，绝不会被意外提交。
 
-### 3. 一键编译生成覆写产物
+### 3. 覆写编译指南 (构建工作流)
 
-运行核心编译命令：
+核心生成器为 `scripts/gen_override.py`，支持全量编译、单轨定制与命令行参数：
+
+#### A. 标准一键全量编译 (推荐)
+
+直接运行核心编译脚本，生成器将自动执行「读取模块配置 → 探测私有内网 → 构建双轨产物 → Node.js AST 语法树自检」闭环：
 
 ```bash
 python scripts/gen_override.py
 ```
 
-生成器将完成：
-- 读取 `config/rules_profile.json` 与规则分类；
-- 编译生成 `override/customSubBoost.js` (All-in-One 脚本)；
-- 编译生成 `override/customSubBoost.yaml` (双轨 YAML 备份)；
-- 自动触发 Node.js 语法树静态自检。
+**编译输出与生成逻辑**：
+- `override/customSubBoost.js`：★ **本地自用全合一脚本**。若检测到 `config/private_work.json`，自动将其中的内网域名、IP、进程和 DNS 策略无缝打包注入顶部 `CONFIG`（已被 `.gitignore` 保护，绝不泄漏）。
+- `override/customSubBoost.example.js`：★ **公开脱敏模板**。永不包含任何个人敏感信息，供 Git 追踪或分享。
+- `override/customSubBoost.yaml`：★ **双轨纯 YAML 备份**。供仅支持 YAML 格式的客户端使用。
+
+#### B. 常用构建参数与编译模式
+
+生成器内置了灵活的 CLI 参数，满足不同场景构建需求：
+
+```bash
+# 场景 1：仅编译 All-in-One JS 覆写 (适合 Flclash / bettbox / Clash Party 用户)
+python scripts/gen_override.py --js-only
+
+# 场景 2：仅编译纯 YAML 覆写 (适合纯 YAML 客户端)
+python scripts/gen_override.py --yaml-only
+
+# 场景 3：自定义输出路径 (例如直接输出到客户端的配置目录)
+python scripts/gen_override.py --js-output "$APPDATA/mihomo-party/override/customSubBoost.js"
+```
+
+| 参数选项 | 类型 | 默认值 | 作用说明 |
+|---|---|---|---|
+| `--js-only` | flag | `false` | 仅编译生成 All-in-One JS 脚本，跳过 YAML 生成 |
+| `--yaml-only` | flag | `false` | 仅编译生成纯 YAML 产物，跳过 JS 生成 |
+| `--js-output <path>` | Path | `override/customSubBoost.js` | 指定 JS 产物的输出文件路径 |
+| `--yaml-output <path>` | Path | `override/customSubBoost.yaml` | 指定 YAML 产物的输出文件路径 |
+
+#### C. 定制规则集与策略组开关
+
+如需增删特定的分流策略组（例如禁用部分小众流媒体、启用特定的游戏模块）：
+1. 打开 `config/rules_profile.json`；
+2. 在 `modules` 字典中将对应模块设为 `enabled: true` 或 `enabled: false`；
+3. （可选）在 `test_options` 中调整 `url-test` 的探测间隔 (`interval`) 或容差 (`tolerance`)；
+4. 重新执行 `python scripts/gen_override.py` 即可完成重新编译。
 
 ### 4. 运行全套质量门禁与断言测试
 
