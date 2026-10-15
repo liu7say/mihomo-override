@@ -1,3 +1,24 @@
+/**
+ * ==============================================================================
+ * SubBoost 上游参考：高级策略组与地区预设算法 (pa.ts / proxy-group-advanced.ts)
+ * ==============================================================================
+ * 
+ * 【背景与架构变更】
+ * SubBoost 在 v2.4.0 之前拥有 FilteredProxyGroup 独立筛选代理组；
+ * 自 v2.5.0 起，官方主动移除了独立筛选代理组，将地区筛选能力下沉为自定义分流组的高级模式 (Advanced Mode)。
+ * 
+ * 【官方 REGION_PRESETS 关键词表与局限性】
+ * 官方预设了 11 个核心国家/地区关键词列表。
+ * 官方的匹配实现采用的是简单的 string.includes() 子串匹配：
+ * - 致命软肋：
+ *   1. "US" 子串会严重误伤 Australia (含US)、Russia (含US)、Belarus (含US) 等国家。
+ *   2. "TW" 子串会误伤 Network、Software 等包含 tw 的英文单词。
+ *   3. "SG" 会误伤智利首都 Santiago。
+ * - 本项目的解决方案：
+ *   在 scripts/gen_override.py 中采用好品味的 NB(code) 非字母边界正则，
+ *   并为各个地区组配备严密的 exclude-filter，将官方 94 个误命中彻底降至 0！
+ */
+
 import { getNodeSourceIds } from "@subboost/core/subscription/node-source-state";
 import {
   DEFAULT_LOAD_BALANCE_STRATEGY,
@@ -13,6 +34,7 @@ import type {
 import type { ParsedNode } from "@subboost/core/types/node";
 import { getProxyGroupMemberKey } from "@subboost/core/proxy-group-targets";
 
+/** 官方 11 大国家与地区预设关键词表 */
 export const REGION_PRESETS: Array<{
   id: NodeRegion;
   label: string;
@@ -32,6 +54,7 @@ export const REGION_PRESETS: Array<{
   { id: "au", label: "澳大利亚", emoji: "🇦🇺", keywords: ["澳大利亚", "AU", "Australia", "Sydney", "悉尼"] },
   { id: "other", label: "其他", emoji: "🌐", keywords: [] },
 ];
+
 
 export type ProxyGroupResolvedMemberKind = ProxyGroupMemberRef["kind"];
 

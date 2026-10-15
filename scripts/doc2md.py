@@ -1,14 +1,23 @@
-"""把资料库导出的组件化 XML 转成干净 Markdown。
+"""
+==============================================================================
+资料库组件化 XML 转 Markdown 渲染引擎 (doc2md.py)
+==============================================================================
 
-原始格式是 HTML 风格的组件树（标签有裸属性如 `readonly rowHeader`，
-不是合法 XML），所以用 html.parser 建树再递归渲染。
-只处理本项目实际用到的组件。
+【功能定位】
+将资料库在线文档导出的非标准 HTML/XML 风格组件树（如带有 readonly、rowHeader 等裸属性）
+清洗解析为干净、合规、具备清晰层次的 GitHub Flavored Markdown 文本。
+
+【核心架构技巧】
+1. 容错解析：采用 Python 标准库 html.parser 代替 xml.etree（后者遇裸属性或小写标签会 ParseError）。
+2. 文档流保序：采用 parts 列表按原始字符与标签的出现顺序混装，防止标签拼接后文字倒装。
+3. 字符实体反转义：自动处理未转义的裸 & 符号与转义字符。
 """
 import re
 import sys
 from html.parser import HTMLParser
 
 VOID = {"divider", "br", "hr"}
+
 
 
 class Node:

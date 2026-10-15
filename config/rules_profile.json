@@ -1,0 +1,187 @@
+{
+  "$schema": "SubBoost 规则选择与模块定制配置",
+  "preset": "full",
+  "description": "修改此文件可控制 customSubBoost.js 与 customSubBoost.yaml 中启用的业务分流模块与测速参数",
+  "testOptions": {
+    "url": "https://www.gstatic.com/generate_204",
+    "interval": 600,
+    "tolerance": 50,
+    "lazy": true
+  },
+  "modules": {
+    "ai": {
+      "enabled": true,
+      "name": "🤖 AI 服务",
+      "category": "service",
+      "description": "ChatGPT、Claude、Copilot 等"
+    },
+    "gemini": {
+      "enabled": false,
+      "name": "✨ Gemini",
+      "category": "service",
+      "description": "Google Gemini (Bard) 等"
+    },
+    "youtube": {
+      "enabled": true,
+      "name": "📹 油管视频",
+      "category": "service",
+      "description": "YouTube 视频、YouTube Music"
+    },
+    "google": {
+      "enabled": true,
+      "name": "🔍 谷歌服务",
+      "category": "service",
+      "description": "Google 搜索、Gmail、Drive"
+    },
+    "microsoft": {
+      "enabled": true,
+      "name": "Ⓜ️ 微软服务",
+      "category": "service",
+      "description": "Microsoft 365、Azure、Bing"
+    },
+    "apple": {
+      "enabled": true,
+      "name": "🍏 苹果服务",
+      "category": "service",
+      "description": "iCloud、App Store"
+    },
+    "telegram": {
+      "enabled": true,
+      "name": "📲 电报消息",
+      "category": "social",
+      "description": "Telegram 消息和通话"
+    },
+    "twitter": {
+      "enabled": true,
+      "name": "🐦 推特/X",
+      "category": "social",
+      "description": "Twitter/X 社交平台"
+    },
+    "meta": {
+      "enabled": true,
+      "name": "📘 Meta 系",
+      "category": "social",
+      "description": "Facebook、Instagram"
+    },
+    "discord": {
+      "enabled": true,
+      "name": "🎙️ Discord",
+      "category": "social",
+      "description": "Discord 语音聊天"
+    },
+    "social-other": {
+      "enabled": true,
+      "name": "💬 其他社交",
+      "category": "social",
+      "description": "TikTok、Line、Reddit"
+    },
+    "netflix": {
+      "enabled": true,
+      "name": "🎬 奈飞",
+      "category": "media",
+      "description": "Netflix 视频"
+    },
+    "disney": {
+      "enabled": true,
+      "name": "🏰 迪士尼+",
+      "category": "media",
+      "description": "Disney+ 视频"
+    },
+    "streaming-west": {
+      "enabled": true,
+      "name": "📺 欧美流媒体",
+      "category": "media",
+      "description": "HBO、Hulu、Prime Video"
+    },
+    "streaming-asia": {
+      "enabled": true,
+      "name": "🎌 亚洲流媒体",
+      "category": "media",
+      "description": "巴哈姆特、Abema、Viu、KKTV 等"
+    },
+    "steam": {
+      "enabled": true,
+      "name": "🎮 Steam",
+      "category": "game",
+      "description": "Steam 游戏平台"
+    },
+    "gaming-pc": {
+      "enabled": true,
+      "name": "🖥️ PC 游戏",
+      "category": "game",
+      "description": "Epic、EA、Ubisoft、GOG"
+    },
+    "gaming-console": {
+      "enabled": true,
+      "name": "🎯 主机游戏",
+      "category": "game",
+      "description": "PlayStation、Xbox"
+    },
+    "github": {
+      "enabled": true,
+      "name": "🐱 代码托管",
+      "category": "tech",
+      "description": "GitHub、GitLab、Bitbucket"
+    },
+    "cloud": {
+      "enabled": true,
+      "name": "☁️ 云服务",
+      "category": "tech",
+      "description": "AWS、Azure、Cloudflare 等"
+    },
+    "dev-tools": {
+      "enabled": true,
+      "name": "🛠️ 开发工具",
+      "category": "tech",
+      "description": "Docker、npm、JetBrains"
+    },
+    "storage": {
+      "enabled": true,
+      "name": "💾 网盘存储",
+      "category": "tech",
+      "description": "Dropbox、Box、Notion 等"
+    },
+    "payment": {
+      "enabled": true,
+      "name": "💳 支付平台",
+      "category": "finance",
+      "description": "PayPal、Stripe、Wise 等"
+    },
+    "crypto": {
+      "enabled": true,
+      "name": "₿ 加密货币",
+      "category": "finance",
+      "description": "Binance 等"
+    },
+    "google-scholar": {
+      "enabled": false,
+      "name": "🎓 谷歌学术",
+      "category": "other",
+      "description": "Google Scholar 学术搜索"
+    },
+    "education": {
+      "enabled": true,
+      "name": "📚 教育学术",
+      "category": "other",
+      "description": "Coursera、Udemy、学术资源等"
+    },
+    "news": {
+      "enabled": true,
+      "name": "📰 新闻资讯",
+      "category": "other",
+      "description": "BBC、CNN、NYT、Bloomberg 等"
+    },
+    "shopping": {
+      "enabled": true,
+      "name": "🛒 海淘购物",
+      "category": "other",
+      "description": "Amazon、eBay、Shopify 等"
+    },
+    "adult": {
+      "enabled": false,
+      "name": "🔞 成人内容",
+      "category": "other",
+      "description": "成人网站（默认关闭）"
+    }
+  }
+}

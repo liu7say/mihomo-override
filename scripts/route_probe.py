@@ -39,10 +39,15 @@ def api(path):
 
 
 def prepare():
+    """准备探测沙箱环境并执行合并配置构建。"""
     os.makedirs(WORK, exist_ok=True)
+    build_script = os.path.join(os.path.dirname(__file__), "build_merged.py")
+    if not os.path.exists(build_script):
+        build_script = os.path.join(BASE, "test", "_sb", "build_merged.py")
     sh = subprocess.run(
-        [sys.executable, os.path.join(BASE, "test", "_sb", "build_merged.py")],
+        [sys.executable, build_script],
         capture_output=True, text=True, encoding="utf-8", errors="replace")
+
     merged = os.path.join(BASE, "test", "_sb", "merged")
     cfg = open(os.path.join(merged, "config.yaml"), encoding="utf-8").read()
     cfg = re.sub(r"^port: .*$", f"port: {MIXED + 1}", cfg, flags=re.M)

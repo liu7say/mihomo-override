@@ -1,10 +1,24 @@
-"""模拟 mihomo-party 的覆写合并链，验证 JS + YAML(rules+:) 的最终结果。
+"""
+==============================================================================
+Mihomo-Party 客户端覆写合并链模拟与断言验证器 (merge_sim.py)
+==============================================================================
 
-依据（从 app.asar 解出）：
-  applyOverrides(): global 覆写按 override.yaml 注册表从上到下依次执行
-    ext=js   -> runOverrideScript(profile, content)     整对象替换
-    ext=yaml -> deepMerge(profile, patch, true)        支持 key+ 追加 / key! 覆盖
-  deepMerge 对数组：key 以 + 开头 -> 前插；key 以 + 结尾 -> 追加；否则整段替换
+【功能定位】
+在完全不起本地内核的情况下，秒级模拟 Clash Party / Sparkle 的底层 app.asar
+覆写合并算法（applyOverrides），对输出的 YAML 产物执行 8 项铁律断言检查。
+
+【客户端合并核心机制 (app.asar 权威依据)】
+1. ext: js -> runOverrideScript(profile, content):
+   main(config) 函数执行，整对象替换。
+2. ext: yaml -> deepMerge(profile, patch, isOverride=true):
+   - key+: 数组追加到已有数组之后 (append)
+   - +key: 数组前插到已有数组之前 (prepend)
+   - key!: 对象整体覆盖
+   - key: 默认整段替换
+3. 顺序铁律:
+   JS 覆写必须在 YAML 覆写之前执行！
+   JS 负责将 config.rules 初始化为内网直连规则，YAML 随后通过 rules+: 追加全球分流规则。
+   若顺序反转，YAML 追加的内容会被后执行的 JS 直接清空抹杀！
 """
 import json
 import os
@@ -15,6 +29,7 @@ import sys
 BASE = os.environ.get("MIHOMO_PARTY_BASE") or os.path.join(
     os.environ.get("APPDATA", os.path.expanduser("~")), "mihomo-party"
 )
+
 
 
 def load_override_yaml_list():
@@ -42,10 +57,17 @@ def deep_merge_arrays(target_rules, patch_rules, key):
 
 
 def main():
-    # 优先使用配置根下的覆写，若不存在则回退至本仓库产物
-    yml_path = os.path.join(BASE, "override", "1b0sb00st01.yaml")
-    if not os.path.exists(yml_path):
-        yml_path = os.path.join(os.path.dirname(__file__), "..", "override", "1b0sb00st01.yaml")
+    # 优先使用配置根下的覆写，若不存在则回退至本仓库产物 (优先 customSubBoost.yaml)
+    repo_override = os.path.join(os.path.dirname(__file__), "..", "override")
+    yml_candidates = [
+        os.path.join(BASE, "override", "customSubBoost.yaml"),
+        os.path.join(BASE, "override", "1b0sb00st01.yaml"),
+        os.path.join(repo_override, "customSubBoost.yaml"),
+        os.path.join(repo_override, "1b0sb00st01.yaml"),
+    ]
+    yml_path = next((p for p in yml_candidates if os.path.exists(p)), None)
+    if not yml_path:
+        raise SystemExit("找不到 YAML 覆写文件 (customSubBoost.yaml / 1b0sb00st01.yaml)")
     yml = open(yml_path, encoding="utf-8").read()
 
     js_path = os.path.join(BASE, "override", "1a128f773c5.js")
@@ -53,14 +75,23 @@ def main():
         js = open(js_path, encoding="utf-8").read()
         work, _ = run_js(None, js)
     else:
-        # 外部无前置私有 JS 时，使用通用模拟直连规则兜底，确保独立验证通过
-        work = [
-            "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
-            "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
-            "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
-            "IP-CIDR,127.0.0.1/8,DIRECT,no-resolve",
-        ]
-        js = "const workRules = " + json.dumps(work) + "; config.rules = [...workRules];"
+        # 外部无前置私有 JS 时，优先使用本仓库新增的 1a_high_freq_direct.js 前置直连白名单
+        local_direct_js = os.path.join(repo_override, "1a_high_freq_direct.js")
+        if os.path.exists(local_direct_js):
+            js_content = open(local_direct_js, encoding="utf-8").read()
+            work = re.findall(r'"([^"]+)"', js_content)
+            # 过滤出合法的规则项
+            work = [r for r in work if r.startswith(("IP-CIDR,", "DOMAIN-SUFFIX,", "DOMAIN,"))]
+            js = "const workRules = " + json.dumps(work) + "; config.rules = [...workRules];"
+        else:
+            work = [
+                "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
+                "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
+                "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+                "IP-CIDR,127.0.0.1/8,DIRECT,no-resolve",
+            ]
+            js = "const workRules = " + json.dumps(work) + "; config.rules = [...workRules];"
+
 
     # --- 阶段 0：订阅原始配置 ---
     rules = load_override_yaml_list()
@@ -73,7 +104,7 @@ def main():
     else:
         raise SystemExit("JS 里的 config.rules 赋值形态与预期不符，需人工确认")
 
-    # --- 阶段 2：YAML 覆写（1b0sb00st01, global, 注册表第 4 项）---
+    # --- 阶段 2：YAML 覆写（customSubBoost / 1b0sb00st01, global, 注册表第 4 项）---
     m = re.search(r"^rules(\+?):\s*$", yml, re.M)
     if not m:
         raise SystemExit("YAML 里找不到 rules 或 rules+ 键")

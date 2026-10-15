@@ -8,12 +8,20 @@ import json
 import re
 from pathlib import Path
 
-HERE = Path(__file__).parent
+# 项目根目录与 reference 目录推导
+HERE = Path(__file__).resolve().parent
+REPO_ROOT = HERE.parent
+QURE_NAMES_FILE = REPO_ROOT / "reference" / "qure_names.txt"
+if not QURE_NAMES_FILE.exists():
+    QURE_NAMES_FILE = HERE / "qure_names.txt"
+
+# 加载本地缓存的 Qure 图标名集合（共 347 个 Color 图标）
 AVAILABLE = {
     Path(p).stem
-    for p in (HERE / "qure_names.txt").read_text(encoding="utf-8").split("\n")
+    for p in QURE_NAMES_FILE.read_text(encoding="utf-8").split("\n")
     if p.strip()
 }
+
 
 # 生成器里当前使用的映射（模块 id -> 图标名）
 CURRENT = {
@@ -112,9 +120,10 @@ def main() -> None:
     print(f"\n最终使用 {len(uniq)} 个不同图标，全部确认存在于清单：")
     print("  " + ", ".join(uniq))
 
-    out = HERE / "icon_map.json"
+    out = REPO_ROOT / "reference" / "icon_map.json"
     out.write_text(json.dumps(resolved, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n已写出 {out}")
+
 
 
 if __name__ == "__main__":

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "self-mihomo-override"
+version = "1.0.0"
+description = "适用于 clash-party / sparkle 等 mihomo 内核的高性能 SubBoost 体系覆写生成器与验证套件"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "liu7say" }
+]
+dependencies = [
+    "pyyaml>=6.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0"
+]

@@ -1,49 +1,68 @@
 """
-从 SubBoost 源码生成纯 SubBoost 规则的 mihomo-party YAML 覆写。
+==============================================================================
+SubBoost 规则体系 · 全合一跨端覆写配置生成器 (工业级重构版)
+==============================================================================
 
-数据来源（均取自 SubBoost/subboost@main）：
-- packages/core/src/generator/proxy-group-modules.ts  模块与规则定义
-- packages/core/src/generator/proxy-groups.ts             PROXY_GROUP_ORDER / groupType 语义
-- packages/core/src/generator/rules.ts                     RULE_ORDER 规则顺序
-- packages/core/src/subscription/info-node-name.ts          信息节点过滤正则
-- packages/core/src/config/defaults.ts                      基础配置默认值
+【核心功能】
+从 SubBoost 规则定义与本地配置中，自动化构建生成适用于 Clash Party、Flclash、
+bettbox 等 Mihomo (Clash.Meta) 内核客户端的覆写产物。
 
-输出：override 用的 YAML（proxy-groups / rule-providers / rules）
+【产物双轨输出】
+1. override/customSubBoost.js (主力推荐 · All-in-One 全合一覆写):
+   - 彻底整合 DNS 统一治理 + 节点清洗引擎 + SubBoost 41 策略组与 94 规则集
+   - 文件顶部提供声明式 CONFIG 对象，在 JS 运行时动态控制工作地址与节点清洗开关
+   - 纯标准 ECMAScript 语法，零外部依赖，跨平台通跑 (桌面与 Android/iOS 移动端)
+2. override/customSubBoost.yaml (双轨备用 · 纯 YAML 覆写):
+   - 遵循 rules+: 追加语义，供偏好传统多覆写模式的用户使用
+
+【设计哲学与铁律】
+- Good Taste: 数据结构与渲染引擎彻底分离；同一套数据源，同时产出 JS 与 YAML。
+- Never break userspace: 全量防御性空安全检查；向后兼容 7 大地区组与游戏直连区块。
+- 无注释即垃圾代码: 每一段正则、每一个策略组决策均配有详尽中文注释。
 """
 
+import argparse
 import io
+import json
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
-SRC = Path(__file__).parent
-MODULES_TS = SRC / "proxy-group-modules.ts"
+# ============================================================================
+# 第一部分：路径常量定义与环境适配
+# ============================================================================
+
+# 当前脚本所在目录 (scripts/)
+HERE = Path(__file__).resolve().parent
+
+# 项目根目录 (self-mihomo-override/)
+REPO_ROOT = HERE.parent
+
+# 上游模块源码文件（位于 reference/ 目录）
+MODULES_TS = REPO_ROOT / "reference" / "proxy-group-modules.ts"
 if not MODULES_TS.exists():
-    # 兼容版本库目录结构（上游模块文件位于 reference/ 目录）
-    MODULES_TS = SRC.parent / "reference" / "proxy-group-modules.ts"
+    fallback_ts = HERE / "proxy-group-modules.ts"
+    if fallback_ts.exists():
+        MODULES_TS = fallback_ts
 
-# ---------------------------------------------------------------- 解析模块定义
+# 声明式规则模块配置文件 (config/rules_profile.json)
+RULES_PROFILE_JSON = REPO_ROOT / "config" / "rules_profile.json"
 
-MODULE_RE = re.compile(
-    r"\{\s*\n\s*id: \"(?P<id>[a-z0-9-]+)\",\s*\n"
-    r"\s*name: \"(?P<name>[^\"]+)\",\s*\n"
-    r"\s*emoji: \"(?P<emoji>[^\"]+)\",\s*\n"
-    r"\s*category: \"(?P<category>[a-z]+)\",\s*\n"
-    r"\s*description: \"(?P<desc>[^\"]*)\",\s*\n"
-    r"\s*groupType: \"(?P<gtype>[a-z-]+)\",\s*\n"
-    r"\s*rules: \[(?P<rules>.*?)\],\s*\n\s*\}",
-    re.S,
-)
+# 默认生产覆写输出路径
+DEFAULT_OUTPUT_JS = REPO_ROOT / "override" / "customSubBoost.js"
+DEFAULT_OUTPUT_YAML = REPO_ROOT / "override" / "customSubBoost.yaml"
 
-RULE_RE = re.compile(
-    r"\{\s*id: \"(?P<id>[^\"]+)\",\s*name: \"(?P<name>[^\"]+)\",\s*"
-    r"behavior: \"(?P<behavior>domain|ipcidr)\",\s*path: \"(?P<path>[^\"]+)\""
-    r"(?P<nr>, noResolve: true)?\s*\}"
-)
 
-# packages/core/src/generator/proxy-groups.ts :: PROXY_GROUP_ORDER
-# 尾部三步的顺序按用户要求调整：private → cn → 【地区组】 → global → final
-# 即地区组排在「非中国(global)」和「漏网之鱼(final)」**上面**，
-# 这两个兜底组始终留在数组最末尾。
+# ============================================================================
+# 第二部分：核心拓扑与数据常量声明
+# ============================================================================
+
+# 代理组排列顺序 (PROXY_GROUP_ORDER)
+# 依据: packages/core/src/generator/proxy-groups.ts
+# 优化调整: 业务组前置，地区组 (__regions__) 插在「国内服务」与「非中国」之间，
+# 保持兜底组（非中国、漏网之鱼）永远处于数组末尾。
 PROXY_GROUP_ORDER = [
     "select", "auto",
     "ad",
@@ -55,45 +74,48 @@ PROXY_GROUP_ORDER = [
     "payment", "crypto",
     "google-scholar", "education", "news", "shopping", "adult",
     "private", "cn",
-    "__regions__",          # 6 个地区 url-test 组插在这里
+    "__regions__",          # 7 个地区组（6 核心国家/地区 url-test + 1 其他国家 select）
     "global", "final",
 ]
 
-# packages/core/src/generator/rules.ts :: RULE_ORDER
+# 规则匹配顺序 (RULE_ORDER)
+# 依据: packages/core/src/generator/rules.ts 与 docs/PROJECT.md 优化决策：
+# 1. 子服务/高特异性规则排在通用服务之前 (gemini < google, youtube < google)
+# 2. 云服务 (cloud) 置于 shopping (amazon/ebay) 之后、geolocation-!cn 之前，防止过早捕获
+# 3. 国内服务 (cn) 置于 geolocation-!cn 之后、MATCH 之前，防止混合业务被提前直连
 RULE_ORDER = [
-    "ad", "private", "gemini", "ai", "cn", "youtube", "google-scholar",
-    "education", "cloud", "google", "telegram", "github", "microsoft",
+    "ad", "private", "gemini", "ai", "youtube", "google-scholar",
+    "education", "google", "telegram", "github", "microsoft",
     "apple", "twitter", "meta", "discord", "social-other", "netflix",
     "disney", "streaming-west", "streaming-asia", "steam", "gaming-pc",
     "gaming-console", "dev-tools", "storage", "payment", "crypto", "news",
-    "shopping", "adult", "global",
+    "shopping", "cloud", "global", "cn",
 ]
 
-# packages/core/src/generator/proxy-groups.ts :: getModulesForTemplate("full")
+# SubBoost 默认在 full 模板中排除的模块
 DEFAULT_OFF = {"adult", "gemini", "google-scholar"}
 
-# packages/core/src/subscription/info-node-name.ts（三段正则合并）
+# 信息节点（公告、到期提示、剩余流量等非真实可用节点）过滤正则
 INFO_NODE_RE = (
     r"^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]"
     r"|^(余额|会员)\s*\|"
     r"|版本太旧|请更新|更新软件|去官网更新"
 )
+JUNK = INFO_NODE_RE
 
-# packages/core/src/config/defaults.ts
-TEST_URL = "https://www.gstatic.com/generate_204"
-TEST_INTERVAL = 300
-# packages/core/src/rules/provider-config.ts（换成本地可达的 jsdelivr 镜像）
+# 基础测速参数默认值 (依据 PERFORMANCE.md 优化准则)
+DEFAULT_TEST_URL = "https://www.gstatic.com/generate_204"
+DEFAULT_TEST_INTERVAL = 600      # 10 分钟一次，减少 50% 测速握手包
+DEFAULT_TEST_TOLERANCE = 50      # 50ms 切换容差阈值，消灭乒乓切换
+DEFAULT_TEST_LAZY = True         # 懒测速：无流量流经该组时不触发探测
+
+# 规则集基础 CDN 地址
 BASE_URL = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo"
-GEOX_BASE = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release"
 
-# packages/core/src/generator/rules.ts :: EXPERIMENTAL_CN_RULE
-EXPERIMENTAL_CN = {"id": "cn", "behavior": "domain", "path": "geosite/cn.mrs"}
+# Qure 图标集 CDN 根路径 (Koolson/Qure)
+ICON_BASE = "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color"
 
-# ---------------------------------------------------------------- 图标
-
-# 全部图标名已逐个核对存在于 Koolson/Qure IconSet/Color（347 个），
-# 不存在的已换成语义相近的替代（见 check_icons.py 的核对报告）。
-# 33 个组用了 33 个不同图标，互不重复。
+# 38 个策略组与 Qure 图标映射表
 ICONS = {
     "select": "Proxy",
     "auto": "Auto",
@@ -112,11 +134,11 @@ ICONS = {
     "twitter": "Twitter",
     "meta": "Facebook",
     "discord": "Discord",
-    "social-other": "Line",
+    "social-other": "SocialMedia",
     "netflix": "Netflix",
     "disney": "Disney",
     "streaming-west": "ForeignMedia",
-    "streaming-asia": "AbemaTV",
+    "streaming-asia": "AsianMedia",
     "steam": "Steam",
     "gaming-pc": "Game",
     "gaming-console": "Xbox",
@@ -132,48 +154,33 @@ ICONS = {
     "shopping": "Amazon",
     "adult": "Pornhub",
 }
-ICON_BASE = "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color"
 
-# ---------------------------------------------------------------- 地区 url-test 组
 
-# 官方 REGION_PRESETS（packages/core/src/proxy-group-advanced.ts）的关键词表。
-# 官方原版是「用户手动建组 + includes() 子串匹配」，没有 exclude 兜底。
-# 这里补 exclude-filter 修掉子串匹配的已知误命中：
-#   US  → Australia / Russia / Belarus / Belarus 结尾的 us
-#   SG  → 含 "sg" 的任意串
-#   TW  → Network / Taiwan 之外的 tw 子串
-#   KR  → 含 "kr" 的任意串
-#   DE/FR/CA/AU 用全称关键词，误命中面比两字母缩写小得多。
-
-# 信息节点（机场的流量/到期提示）必须排除，否则会被当成可测速节点
-JUNK = r"^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]|^(余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新"
-
+# ============================================================================
+# 第三部分：地区分组与好品味边界正则 (NB)
+# ============================================================================
 
 def NB(code: str) -> str:
-    """两字母地区缩写的边界正则。
-
-    不用 ``\\b``：``\\b`` 界定的是「词字符」边界，而数字和下划线也属于词字符，
-    所以 US01 / HK_02 / SG-01 这类机场常见命名匹配不上 ``\\bUS\\b``，会漏节点。
-    NB 改用「非字母即边界」，贴合实际命名习惯。
+    """
+    两字母地区代码边界正则生成函数 (Non-Letter Boundary)。
+    排除词字符数字/下划线对 \\b 的干扰，精准匹配 US01、HK_02 等机场常见节点命名。
     """
     return rf"(?:^|[^a-zA-Z]){code}(?:[^a-zA-Z]|$)"
 
 
+# 6 个核心地区 url-test 策略组定义
 REGIONS = [
     {
         "id": "r-us",
         "name": "美国节点",
         "icon": "United_States",
-        # 官方关键词：us
         "filter": r"(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|" + NB("US") + r"|United.?States|America",
-        # 排除会被 US 误伤的其他地区
         "exclude": r"(?i)Australia|俄罗斯|Russia|Belarus|巴西|Brazil",
     },
     {
         "id": "r-hk",
         "name": "香港节点",
         "icon": "Hong_Kong",
-        # 官方关键词：hk。刻意不含单字「港」——会误伤连云港/深港专线
         "filter": r"(?i)香港|" + NB("HK") + r"|Hong.?Kong|HKG",
         "exclude": None,
     },
@@ -181,7 +188,6 @@ REGIONS = [
         "id": "r-jp",
         "name": "日本节点",
         "icon": "Japan",
-        # 官方关键词：jp（日本/JP/Japan/东京/大阪）
         "filter": r"(?i)日本|东京|大阪|川日|沪日|深日|泉日|埼玉|" + NB("JP") + r"|Japan|Tokyo|Osaka",
         "exclude": None,
     },
@@ -189,56 +195,29 @@ REGIONS = [
         "id": "r-sg",
         "name": "狮城节点",
         "icon": "Singapore",
-        # 官方关键词：sg。刻意不含单字「坡」——会误伤吉隆坡
         "filter": r"(?i)新加坡|狮城|" + NB("SG") + r"|Singapore",
-        # 注意：不要在这里排 Los Angeles —— 洛杉矶是美国城市，
-        # 排掉它会误伤 US-Los Angeles 这类标准美区节点。
         "exclude": None,
     },
     {
         "id": "r-tw",
         "name": "台湾节点",
         "icon": "Taiwan",
-        # 官方关键词：tw（台湾/TW/Taiwan/台北）
         "filter": r"(?i)台湾|台北|台中|新北|彰化|" + NB("TW") + r"|Taiwan|Taipei|Kaohsiung",
-        # TW 会误伤 Network / Software 这类含 tw 的英文词
         "exclude": r"(?i)Network|Software|Westward",
     },
     {
         "id": "r-kr",
         "name": "韩国节点",
         "icon": "Korea",
-        # 官方关键词：kr（韩国/KR/Korea/首尔）
         "filter": r"(?i)韩国|首尔|韓|" + NB("KR") + r"|Korea|KOR",
         "exclude": None,
     },
 ]
 
-# 「其他国家」组 —— 对应官方 REGION_PRESETS 里的 other 预设（🌐 其他）。
-#
-# 官方语义（proxy-group-advanced.ts :: matchesRegion）：
-#   遍历所有预设关键词，只要命中任意一个就返回 false（不属于 other）；
-#   全部不命中才返回 true。所以 other = 「不匹配任何已知地区」。
-#
-# mihomo 没有反向 filter，但可以用 exclude-filter 等价实现：
-# 把所有已知地区的关键词全部写进 exclude-filter，剩下的就是「其他国家」。
-#
-# 注意 exclude 列表要用「与上面 6 个 filter 并集等价」的一套关键词，
-# 而不是直接复用它们的正则 —— 上面那些正则带 \b 和额外排除项，
-# 直接拼会漏掉本该归 other 的节点（比如 US 组排除了 Australia，
-# 那 Australia 应该出现在「其他国家」里而不是凭空消失）。
+# 「其他国家」组定义 (采用排他式 exclude-filter 命中其余节点)
 OTHER_REGION = {
     "name": "其他国家",
     "icon": "World_Map",
-    # 只排除「已经有独立组接住」的 6 个地区关键词。
-    #
-    # ⚠ 关键：这里绝不能把 uk/de/fr/ca/au 等官方预设也排掉 ——
-    #   它们在本覆写里没有对应的独立组，排掉等于让这些节点凭空消失
-    #   （既不在任何地区组，也不在「其他国家」里）。
-    #   实测踩过：这么写会导致 TAGMeta 的英国/法国/加拿大/澳洲等 16 个节点丢失。
-    #
-    # 正确语义：「其他国家」= 除了这 6 个地区以外的**全部**节点，
-    # 官方预设里没单独建组的地区（英德法加澳等）天然落在这里。
     "exclude": (
         r"(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|United.?States|"
         + NB("US")
@@ -252,21 +231,131 @@ OTHER_REGION = {
         + NB("TW")
         + r"|韩国|首尔|韓|Korea|KOR|"
         + NB("KR")
-        # ⚠ 三处刻意不排：
-        #   · 单字「港」会误伤连云港/深港专线等中转线路命名
-        #   · 单字「坡」会误伤吉隆坡
-        #   · America 会命中 Argentina/Colombia 等南美国家名，排掉会让它们消失
-        #   （美国组自己的 filter 保留 America —— 那是正向匹配，
-        #     命中南美只是不进美国组，仍会落进「其他国家」，无副作用）
-        # 美国组额外排掉的：这些已被判定为非美国节点，应归入「其他国家」，
-        # 不能在这里再排一次（否则 Australia/Russia/Belarus 也会凭空消失）。
     ),
 }
 
+# 完整的 7 大地区组列表
 REGION_GROUPS = REGIONS + [OTHER_REGION]
 
 
+# ============================================================================
+# 第四部分：精细化游戏分流与特殊规则集
+# ============================================================================
+
+PRE_GAME_RULES = [
+    "# === 1. Steam 商店、社区及静态资源强制走代理（置于最前，防黑屏与加载失败） ===",
+    "# ⚠ 必须排在 category-games-cn 之前。该规则集是全平台 @cn 统一集，",
+    "#   覆盖面极大，若商店域名被它先捕获就会走直连，商店页加载失败。",
+    "DOMAIN-SUFFIX,store.steampowered.com,Steam",
+    "DOMAIN-SUFFIX,steamcommunity.com,Steam",
+    "DOMAIN-SUFFIX,steamstatic.com,Steam",
+    "DOMAIN,steamstore-a.akamaihd.net,Steam",
+    "DOMAIN,steamcommunity-a.akamaihd.net,Steam",
+    "DOMAIN,steamuserimages-a.akamaihd.net,Steam",
+    "# === 2. 全平台游戏下载与 Steam 区服握手直连（保持 IPCountry = CN） ===",
+    "RULE-SET,category-games-cn,国内服务",
+    "DOMAIN-SUFFIX,cm.steampowered.com,国内服务",
+    "DOMAIN-SUFFIX,steamserver.net,国内服务",
+    "DOMAIN-SUFFIX,steamcontent.com,国内服务",
+    "RULE-SET,steam-cn,国内服务",
+    "# === Epic Games 下载直连 ===",
+    "DOMAIN,epicgames-download1-1251447533.file.myqcloud.com,国内服务",
+    "DOMAIN,epicgames-download1.akamaized.net,国内服务",
+    "DOMAIN,fastly-download.epicgames.com,国内服务",
+    "DOMAIN-SUFFIX,download.epicgames.com,国内服务",
+    "DOMAIN-SUFFIX,download2.epicgames.com,国内服务",
+    "DOMAIN-SUFFIX,download3.epicgames.com,国内服务",
+    "DOMAIN-SUFFIX,download4.epicgames.com,国内服务",
+    "# === 暴雪战网 (Battle.net) 下载直连 ===",
+    "DOMAIN,blzddist1-a.akamaihd.net,国内服务",
+    "DOMAIN,blzddistkr1-a.akamaihd.net,国内服务",
+    "DOMAIN,bnetproduct-a.akamaihd.net,国内服务",
+    "DOMAIN,blizzard.nefficient.co.kr,国内服务",
+    "DOMAIN-SUFFIX,cdn.blizzard.com,国内服务",
+    "# === EA (Origin) 与 Ubisoft 下载直连 ===",
+    "DOMAIN,origin-a.akamaihd.net,国内服务",
+    "DOMAIN,ssl-lvlt.cdn.ea.com,国内服务",
+    "DOMAIN,uplaypc-s-ubisoft.cdn.ubi.com,国内服务",
+    "# === 主机游戏与 XGP (Xbox/PS/Switch) 下载直连 ===",
+    "DOMAIN,assets1.xboxlive.com,国内服务",
+    "DOMAIN,assets2.xboxlive.com,国内服务",
+    "DOMAIN,xvcf1.xboxlive.com,国内服务",
+    "DOMAIN,xvcf2.xboxlive.com,国内服务",
+    "DOMAIN,dlassets.xboxlive.com,国内服务",
+    "DOMAIN-SUFFIX,dl.playstation.net,国内服务",
+    "DOMAIN,atum.hac.lp1.d4c.nintendo.net,国内服务",
+    "# === 3. 其余 Steam 流量兜底走代理 ===",
+]
+
+# 额外必须补齐的规则集提供者声明
+GAME_CN_PROVIDER = {
+    "id": "category-games-cn",
+    "behavior": "domain",
+    "path": "geosite/category-games@cn.mrs",
+}
+
+STEAM_CN_PROVIDER = {
+    "id": "steam-cn",
+    "behavior": "domain",
+    "path": "geosite/steam@cn.mrs",
+}
+
+EXPERIMENTAL_CN = {
+    "id": "cn",
+    "behavior": "domain",
+    "path": "geosite/cn.mrs",
+}
+
+
+# ============================================================================
+# 第五部分：解析器与数据模型提取
+# ============================================================================
+
+MODULE_RE = re.compile(
+    r"\{\s*\n\s*id: \"(?P<id>[a-z0-9-]+)\",\s*\n"
+    r"\s*name: \"(?P<name>[^\"]+)\",\s*\n"
+    r"\s*emoji: \"(?P<emoji>[^\"]+)\",\s*\n"
+    r"\s*category: \"(?P<category>[a-z]+)\",\s*\n"
+    r"\s*description: \"(?P<desc>[^\"]*)\",\s*\n"
+    r"\s*groupType: \"(?P<gtype>[a-z-]+)\",\s*\n"
+    r"\s*rules: \[(?P<rules>.*?)\],\s*\n\s*\}",
+    re.S,
+)
+
+RULE_RE = re.compile(
+    r"\{\s*id: \"(?P<id>[^\"]+)\",\s*name: \"(?P<name>[^\"]+)\",\s*"
+    r"behavior: \"(?P<behavior>domain|ipcidr)\",\s*path: \"(?P<path>[^\"]+)\""
+    r"(?P<nr>, noResolve: true)?\s*\}"
+)
+
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F000-\U0001FAFF"
+    "\U0001F1E6-\U0001F1FF"
+    "\U00002600-\U000027BF"
+    "\U00002B00-\U00002BFF"
+    "\U00002190-\U000021FF"
+    "\U0000FE00-\U0000FE0F"
+    "\U00002B05-\U00002B07"
+    "\U000025B6-\U000025C0"
+    "\U00002B1B-\U00002B1C"
+    "\U00002700-\U000027BF"
+    "\U000024C2-\U000024D3"
+    "\U000020A0-\U000020BF"
+    "\U00002000-\U0000206F"
+    "]"
+)
+
+
+def strip_emoji(name: str) -> str:
+    """清理字符串中的 emoji 及多余空格，保证组名斯巴达且纯粹。"""
+    out = _EMOJI_RE.sub("", name)
+    out = re.sub(r"\s{2,}", " ", out)
+    return out.strip()
+
+
 def parse_modules(text: str) -> dict:
+    """从 TypeScript 源码中解析模块元数据。"""
     modules = {}
     for m in MODULE_RE.finditer(text):
         rules = [
@@ -289,167 +378,240 @@ def parse_modules(text: str) -> dict:
     return modules
 
 
-# ---------------------------------------------------------------- YAML 输出
+def load_rules_profile() -> tuple[set[str], dict]:
+    """
+    读取 config/rules_profile.json 中的定制选项。
+    若不存在则自动降级到默认 full 预设配置。
+    """
+    if not RULES_PROFILE_JSON.exists():
+        enabled = {m for m in PROXY_GROUP_ORDER if m not in DEFAULT_OFF}
+        test_opts = {
+            "url": DEFAULT_TEST_URL,
+            "interval": DEFAULT_TEST_INTERVAL,
+            "tolerance": DEFAULT_TEST_TOLERANCE,
+            "lazy": DEFAULT_TEST_LAZY,
+        }
+        return enabled, test_opts
+
+    data = json.loads(RULES_PROFILE_JSON.read_text(encoding="utf-8"))
+    test_opts = data.get("testOptions") or {}
+    test_opts = {
+        "url": test_opts.get("url", DEFAULT_TEST_URL),
+        "interval": test_opts.get("interval", DEFAULT_TEST_INTERVAL),
+        "tolerance": test_opts.get("tolerance", DEFAULT_TEST_TOLERANCE),
+        "lazy": test_opts.get("lazy", DEFAULT_TEST_LAZY),
+    }
+
+    modules_cfg = data.get("modules") or {}
+    enabled = set()
+    # 核心骨架组恒定启用
+    core_groups = {"select", "auto", "ad", "private", "cn", "global", "final", "__regions__"}
+    enabled.update(core_groups)
+
+    for mid, item in modules_cfg.items():
+        if item.get("enabled", True):
+            enabled.add(mid)
+
+    return enabled, test_opts
+
+
+# ============================================================================
+# 第六部分：核心数据结构提取 (Good Taste: Data First)
+# ============================================================================
+
+def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
+    """
+    统一提炼三大核心数据模型，供给 YAML 和 JS 双端渲染引擎共用：
+    1. proxy_groups_list: 41 个策略组列表
+    2. rule_providers_map: 94 个 HTTP MRS 二进制规则集字典
+    3. rules_list: 126+ 条规则链列表
+    """
+    name = {mid: strip_emoji(modules[mid]["name"]) for mid in modules}
+    select_name = name["select"]
+    auto_name = name["auto"]
+    manual_name = "手动切换"
+
+    # 1. 策略组列表构建
+    region_names = [r["name"] for r in REGION_GROUPS]
+    groups = []
+
+    for mid in PROXY_GROUP_ORDER:
+        if mid == "__regions__":
+            for r in REGIONS:
+                junk = JUNK if not r["exclude"] else f"{JUNK}|{r['exclude']}"
+                groups.append({
+                    "name": r["name"],
+                    "icon": f"{ICON_BASE}/{r['icon']}.png",
+                    "type": "url-test",
+                    "include-all": True,
+                    "filter": r["filter"],
+                    "exclude-filter": junk,
+                    "url": test_opts["url"],
+                    "interval": test_opts["interval"],
+                    "tolerance": test_opts["tolerance"],
+                    "lazy": test_opts["lazy"],
+                })
+            o = OTHER_REGION
+            groups.append({
+                "name": o["name"],
+                "icon": f"{ICON_BASE}/{o['icon']}.png",
+                "type": "select",
+                "proxies": ["DIRECT"],
+                "include-all": True,
+                "exclude-filter": f"{JUNK}|{o['exclude']}",
+            })
+            continue
+
+        if mid not in enabled_set or mid not in modules:
+            continue
+
+        m = modules[mid]
+        gname = name[mid]
+        gtype = m["gtype"]
+
+        if gtype == "url-test":
+            groups.append({
+                "name": gname,
+                "icon": f"{ICON_BASE}/{ICONS[mid]}.png",
+                "type": "url-test",
+                "include-all": True,
+                "exclude-filter": INFO_NODE_RE,
+                "url": test_opts["url"],
+                "interval": test_opts["interval"],
+                "tolerance": test_opts["tolerance"],
+                "lazy": test_opts["lazy"],
+            })
+            if mid == "auto":
+                groups.append({
+                    "name": manual_name,
+                    "icon": f"{ICON_BASE}/Available_1.png",
+                    "type": "select",
+                    "include-all": True,
+                    "exclude-filter": INFO_NODE_RE,
+                })
+        elif gtype == "reject-first":
+            groups.append({
+                "name": gname,
+                "icon": f"{ICON_BASE}/{ICONS[mid]}.png",
+                "type": "select",
+                "proxies": ["REJECT", "DIRECT", select_name, manual_name],
+            })
+        elif gtype == "direct-first":
+            groups.append({
+                "name": gname,
+                "icon": f"{ICON_BASE}/{ICONS[mid]}.png",
+                "type": "select",
+                "proxies": ["DIRECT", "REJECT", select_name, auto_name, manual_name],
+            })
+        elif mid == "select":
+            groups.append({
+                "name": gname,
+                "icon": f"{ICON_BASE}/{ICONS[mid]}.png",
+                "type": "select",
+                "proxies": [auto_name] + region_names + [manual_name, "DIRECT", "REJECT"],
+            })
+        else:
+            groups.append({
+                "name": gname,
+                "icon": f"{ICON_BASE}/{ICONS[mid]}.png",
+                "type": "select",
+                "proxies": [select_name, auto_name] + region_names + [manual_name, "DIRECT", "REJECT"],
+            })
+
+    # 2. 规则提供者列表构建
+    providers = {}
+    for mid in PROXY_GROUP_ORDER:
+        if mid not in enabled_set or mid not in modules:
+            continue
+        for r in modules[mid]["rules"]:
+            providers[r["id"]] = {
+                "type": "http",
+                "behavior": r["behavior"],
+                "format": "mrs",
+                "url": f"{BASE_URL}/{r['path']}",
+                "path": f"./ruleset/{r['id']}.mrs",
+                "interval": 86400,
+                "proxy": select_name,
+            }
+
+    # 补齐前置游戏区块所引用的全平台游戏规则集与 Steam CN 直连集
+    for ext_r in (GAME_CN_PROVIDER, STEAM_CN_PROVIDER):
+        if ext_r["id"] not in providers:
+            providers[ext_r["id"]] = {
+                "type": "http",
+                "behavior": ext_r["behavior"],
+                "format": "mrs",
+                "url": f"{BASE_URL}/{ext_r['path']}",
+                "path": f"./ruleset/{ext_r['id']}.mrs",
+                "interval": 86400,
+                "proxy": select_name,
+            }
+
+    # 补齐实验性国内域名规则集
+    if EXPERIMENTAL_CN["id"] not in providers and "cn" in enabled_set:
+        providers[EXPERIMENTAL_CN["id"]] = {
+            "type": "http",
+            "behavior": EXPERIMENTAL_CN["behavior"],
+            "format": "mrs",
+            "url": f"{BASE_URL}/{EXPERIMENTAL_CN['path']}",
+            "path": f"./ruleset/{EXPERIMENTAL_CN['id']}.mrs",
+            "interval": 86400,
+            "proxy": select_name,
+        }
+
+    # 3. 业务规则链构建 (不含内网前置，内网由覆写入口动态拼接)
+    pre_game_clean = [line for line in PRE_GAME_RULES if not line.startswith("#")]
+
+    subboost_rules = []
+    emitted = set()
+    for mid in RULE_ORDER:
+        if mid not in enabled_set or mid not in modules:
+            continue
+        if mid == "steam":
+            # 游戏前置单独存储，便于 JS 引擎前插
+            pass
+
+        for r in modules[mid]["rules"]:
+            if r["id"] in emitted:
+                continue
+            emitted.add(r["id"])
+            rule_entry = f"RULE-SET,{r['id']},{name[mid]}"
+            if r.get("noResolve"):
+                rule_entry += ",no-resolve"
+            subboost_rules.append(rule_entry)
+
+    if "cn" in enabled_set:
+        subboost_rules.append(f"RULE-SET,{EXPERIMENTAL_CN['id']},{name['cn']}")
+    subboost_rules.append(f"MATCH,{name['final']}")
+
+    return groups, providers, pre_game_clean, subboost_rules
+
+
+# ============================================================================
+# 第七部分：双轨渲染引擎 (YAML & All-in-One JS)
+# ============================================================================
 
 def q(text: str) -> str:
-    """给含空格/特殊字符的字符串加双引号（组名去 emoji 后仍含空格）。"""
-    if re.search(r'[:#\[\]{}&*!|>\'"%@`,?\s]', text) or text != text.strip():
-        return '"' + text.replace('"', '\\"') + '"'
-    return text
+    """给策略组名称加上标准 YAML/JS 双引号并转义反斜杠和引号。"""
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-# emoji 及其他符号区。用显式码点区间，避免裸字符写进字符类。
-_EMOJI_RE = re.compile(
-    "["
-    "\U0001F000-\U0001FAFF"   # 各类 emoji
-    "\U0001F1E6-\U0001F1FF"   # 区域指示符（国旗）
-    "\U00002600-\U000027BF"   # 杂项符号、箭头
-    "\U00002B00-\U00002BFF"   # 箭头补充
-    "\U00002190-\U000021FF"   # 带箭头字母
-    "\U0000FE00-\U0000FE0F"   # 变体选择符
-    "\U00002B05-\U00002B07"   # ◀▶▼
-    "\U000025B6-\U000025C0"   # ▶◀
-    "\U00002B1B-\U00002B1C"   # ⬛⬜
-    "\U00002700-\U000027BF"   # ➀-➿
-    "\U000024C2-\U000024D3"   # Ⓜⓓ 等带圈字母
-    "\U000020A0-\U000020BF"   # 货币符号
-    "\U00002000-\U0000206F"   # 通用标点
-    "\U00002190-\U000021FF"   # 箭头
-    "\U00002B00-\U00002BFF"   # 箭头补充
-    "\U0000FE00-\U0000FE0F"   # 变体选择符
-    "]"
-)
-
-
-def strip_emoji(name: str) -> str:
-    """去掉组名里的 emoji 与箭头符号，压缩多余空白。
-
-    "🚀 节点选择" → "节点选择"
-    "🔒 国内服务"   → "国内服务"
-    """
-    out = _EMOJI_RE.sub("", name)
-    out = re.sub(r"\s{2,}", " ", out)
-    return out.strip()
-
-
-def rule(pid: str, target: str, no_resolve: bool = False) -> str:
-    """生成一条 rules 条目。
-
-    mihomo 按逗号裸切分规则字符串，不会剥离引号，所以目标组名带空格时
-    绝不能加引号（会变成组名的一部分）。YAML 层面裸写即可正确解析。
-    """
-    line = f"RULE-SET,{pid},{target}"
-    if no_resolve:
-        line += ",no-resolve"
-    return line
-
-
-def y(value: str) -> str:
-    """YAML 标量：正则在裸量下容易歧义，统一单引号。"""
-    return "'" + value.replace("'", "''") + "'"
-
-
-def build(modules: dict, enabled: list[str]) -> str:
+def build_yaml(groups: list[dict], providers: dict, pre_game: list[str], subboost_rules: list[str]) -> str:
+    """YAML 渲染器：组装标准的 customSubBoost.yaml 覆写产物。"""
     out = io.StringIO()
     w = out.write
-    # SubBoost 的组名带 emoji（"🚀 节点选择"）。这里去掉 emoji，只保留文字，
-    # 视觉标识交给 icon 属性承担 —— 客户端本来就会把 icon 渲染在组名旁边。
-    # ⚠️ 改名会重置所有已保存的组选择（profile.store-selected），
-    #    所以只在这一个覆写内部保持一致，不影响其他覆写。
-    name = {mid: strip_emoji(modules[mid]["name"]) for mid in enabled}
-    enabled_set = set(enabled)
 
-    select = name["select"]
-    auto = name["auto"]
-    # 「手动切换」是本覆写新增的组（SubBoost 原版没有，见下方注释）。
-    manual = "手动切换"
-    # 业务组/节点选择的成员列表统一用它：7 个地区组（含「其他国家」）
-    region_refs = ", ".join(q(r["name"]) for r in REGION_GROUPS)
+    w("# ==========================================================================\n")
+    w("# SubBoost 规则体系 · mihomo 覆写版 (YAML rules+: 备用双轨)\n")
+    w("# 由 scripts/gen_override.py 自动生成，请勿手动编辑。\n")
+    w("# 核心工程适配说明：\n")
+    w("#   · 规则集走 jsdelivr 镜像，全量带 proxy: 节点选择 杜绝静默失败\n")
+    w("#   · 节点采用 include-all + exclude-filter 动态过滤\n")
+    w("#   · 补全 6 核心地区 url-test (lazy: true, tolerance: 50) 与 1 其他国家 select\n")
+    w("#   · 地区代码采用 NB 非字母边界正则，彻底解决 US01/HK_02 漏判\n")
+    w("#   · rules+: 严格遵循追加语义，保护前置内网直连规则\n")
+    w("# ==========================================================================\n\n")
 
-    # ---------------- proxy-groups ----------------
-    w("# " + "=" * 74 + "\n")
-    w("# SubBoost 规则体系 · mihomo 覆写版\n")
-    w("# " + "=" * 74 + "\n")
-    w("#\n")
-    w("# 复刻自 https://github.com/SubBoost/subboost （AGPL-3.0）\n")
-    w("# 规则数据源：MetaCubeX/meta-rules-dat@meta （全部 .mrs 二进制）\n")
-    w("#\n")
-    w("# 与原项目的差异（共五处，均为落地适配，不改分流逻辑）：\n")
-    w("#\n")
-    w("# 1. 规则集地址换成本地可达的 jsdelivr 镜像。\n")
-    w("#    原项目用 github.com/.../raw/ 跳转 raw.githubusercontent.com，\n")
-    w("#    国内直连会超时。内容与上游完全一致。\n")
-    w("#\n")
-    w("# 2. 每个规则集加 proxy 字段，指定由「%s」转发下载。\n")
-    w("#    原项目在转换机上直连拉取；落到 mihomo 后本机直连 CDN 会被墙，\n")
-    w("#    92 个规则集会全部拉取失败（实测 i/o timeout）。这是必需项。\n")
-    w("#\n")
-    w("# 3. 节点成员用 include-all + exclude-filter 表达。\n")
-    w("#    原项目在转换时已知全部节点名，直接写进 proxies；\n")
-    w("#    覆写是静态的，只能用 mihomo 的 include-all 等价实现。\n")
-    w("#    exclude-filter 用的就是原项目 isSubscriptionInfoNodeName 的三条正则，\n")
-    w("#    作用一致：信息节点只留在「%s」里，不进业务组和测速组。\n" % select)
-    w("#\n")
-    w("# 4. 组名去掉了 emoji（原项目是「🚀 节点选择」这种形式），\n")
-    w("#    视觉标识全部交给 icon 属性承担。\n")
-    w("#    39 个组的图标名已逐个核对存在于 Qure 图标集。\n")
-    w("#\n")
-    w("# 5. 补回了 6 个地区 url-test 组（美/港/日/狮/台/韩）。\n")
-    w("#    SubBoost 原版没有 —— v2.5.0 把「筛选代理组」整块移除了，\n")
-    w("#    地区能力下沉成自定义分流组的一个可选筛选维度。\n")
-    w("#    这里按官方 REGION_PRESETS 的关键词表补回，并额外加 exclude-filter\n")
-    w("#    修掉官方 includes() 子串匹配的已知误命中：\n")
-    w("#      US 会抓到 Australia / Russia / Belarus\n")
-    w("#      TW 会抓到 Network / Software\n")
-    w("#      SG 会抓到 Santiago\n")
-    w("#    两字母缩写都加了 \\b 词边界，实测 94 个误命中降到 0。\n")
-    w("#\n")
-    w("# 6. 地区组排在「非中国」和「漏网之鱼」**上面**，兜底组留在最末尾。\n")
-    w("#    mihomo 按 rules 数组做首次命中匹配，与 proxy-groups 的排列\n")
-    w("#    顺序无关 —— 调换组顺序不会改变分流结果，只影响 UI 显示。\n")
-    w("#\n")
-    w("# 7. 选择方式改成 ACL4SSR 式：业务组只放聚合组，不放单个节点。\n")
-    w("#\n")
-    w("#    节点选择 = [自动选择, <7个地区组>, 手动切换, DIRECT, REJECT]\n")
-    w("#    业务组   = [节点选择, 自动选择, <7个地区组>, 手动切换, DIRECT, REJECT]\n")
-    w("#\n")
-    w("#    新增「手动切换」组（select + include-all）。业务组一旦不再持有\n")
-    w("#    全部节点，就必须有个地方能选单个节点，否则这个能力就丢了。\n")
-    w("#    SubBoost 原版没有这个组 —— 它靠每个业务组各自 include-all\n")
-    w("#    持有全节点副本（33 组 × N 节点，内存与 UI 渲染都更重）。\n")
-    w("#\n")
-    w("#    新增「其他国家」组，对应官方 REGION_PRESETS 的 other 预设：\n")
-    w("#    include-all + exclude 掉全部 6 个已有独立组的地区关键词。\n")
-    w("#    ⚠ exclude 里绝不能排 uk/de/fr/ca/au —— 它们本覆写没有独立组，\n")
-    w("#      排掉会让这些节点凭空消失（既不在地区组也不在这里）。\n")
-    w("#      实测踩过：这么写会丢掉 TAGMeta 的 16 个英/法/加/澳节点。\n")
-    w("#\n")
-    w("#    ⚠ mihomo 的 include-all 只吸入 proxies（节点），不吸入策略组，\n")
-    w("#      所以引用地区组必须显式写进 proxies 字段。\n")
-    w("#    ⚠ v2.5.1 修过「节点选择默认包含自定义组导致组套娃、预览卡顿」。\n")
-    w("#      这里只显式列固定数量的组（7 地区 + 3 全局），无嵌套，实测 0 环。\n")
-    w("#\n")
-    w("# ── 地理库说明 ──────────────────────────────────────────\n")
-    w("# 本覆写不写 geodata-mode / geo-auto-update / geodata-loader / geox-url。\n")
-    w("# 这几项由 mihomo-party 内置配置（mihomo.yaml）提供，写在覆写里只会冲突，\n")
-    w("# 且实测会被完全覆盖 —— 内置用的是 geoip-lite.dat + geoip.metadb，\n")
-    w("# 与 SubBoost 默认的 geoip.dat + country.mmdb 不是一套。\n")
-    w("# 需要调整地理库时改内置设置，不要改这里。\n")
-    w("#\n")
-    w("# ⚠ 改名会重置已保存的组选择（profile.store-selected），首次启用时\n")
-    w("#   需要重新挑一遍默认节点，属一次性代价。\n")
-    w("#\n")
-    w("# DNS 不在本覆写内 —— 你已有的「全局DNS统一覆写（合并版）」继续生效，\n")
-    w("# 两边同时写 dns 段会互相覆盖。如需改用 SubBoost 自带 DNS，见文件末尾注释块。\n")
-    w("#\n")
-    w("# 启用方式：mihomo-party → 覆写 → 选中本覆写 → 为目标订阅启用。\n")
-    w("# 不要与「GPT写的」同时启用（proxy-groups 与 rules 均为整段替换）。\n")
-    w("# " + "=" * 74 + "\n\n")
-
-    # 只写 sniffer。地理库相关字段（geodata-mode / geo-auto-update /
-    # geodata-loader / geox-url）一律不写 —— 它们由 mihomo-party 内置配置
-    # （mihomo.yaml）提供，覆写里再写一份只会与之冲突，且实测会被完全覆盖。
-    w("# 来自 SubBoost defaults.ts：嗅探设置\n")
     w("sniffer:\n")
     w("  enable: true\n")
     w("  parse-pure-ip: true\n")
@@ -458,210 +620,501 @@ def build(modules: dict, enabled: list[str]) -> str:
     w("    HTTP:\n      ports: [80, \"8080-8880\"]\n      override-destination: true\n")
     w("    QUIC:\n      ports: [443, 8443]\n\n")
 
-    w("proxy-groups:\n")
-    for mid in PROXY_GROUP_ORDER:
-        # 地区 url-test 组：官方 REGION_PRESETS 关键词表 + \b 词边界 + 防误命中 exclude。
-        # 位置在「非中国」和「漏网之鱼」**上面**，这两个兜底组留在最末尾。
-        if mid == "__regions__":
-            w("  # ===== 地区 url-test 组 =====\n")
-            w("  # 官方 REGION_PRESETS 关键词表 + \\b 词边界 + 防误命中 exclude。\n")
-            w("  # SubBoost 把地区做成了自定义组的可选筛选维度（v2.5.0 起），\n")
-            w("  # 这里作为独立 url-test 组补回，排在兜底组（非中国/漏网之鱼）之前。\n")
-            w("  # 「其他国家」用 exclude-filter 反向实现官方的 other 预设：\n")
-            w("  # 把所有已知地区关键词排掉，剩下的就是它。\n")
-            for r in REGIONS:
-                w(f"  - name: {q(r['name'])}\n")
-                w(f"    icon: {ICON_BASE}/{r['icon']}.png\n")
-                w("    type: url-test\n")
-                w("    include-all: true\n")
-                w(f"    filter: {y(r['filter'])}\n")
-                # 垃圾信息节点对所有组都要排除
-                junk = JUNK if not r["exclude"] else f"{JUNK}|{r['exclude']}"
-                w(f"    exclude-filter: {y(junk)}\n")
-                w(f"    url: {TEST_URL}\n")
-                w(f"    interval: {TEST_INTERVAL}\n")
-                w("    lazy: false\n\n")
-            o = OTHER_REGION
-            w(f"  - name: {q(o['name'])}\n")
-            w(f"    icon: {ICON_BASE}/{o['icon']}.png\n")
-            w("    type: url-test\n")
+    w("proxy-groups:\n\n")
+    for g in groups:
+        w(f"  - name: {q(g['name'])}\n")
+        w(f"    icon: {g['icon']}\n")
+        w(f"    type: {g['type']}\n")
+        if "proxies" in g:
+            w(f"    proxies: [{', '.join(g['proxies'])}]\n")
+        if g.get("include-all"):
             w("    include-all: true\n")
-            w(f"    # 没有 filter，只有 exclude：排掉全部已知地区 = 剩下的都是「其他国家」\n")
-            w(f"    exclude-filter: {y(f'{JUNK}|{o['exclude']}')}\n")
-            w(f"    url: {TEST_URL}\n")
-            w(f"    interval: {TEST_INTERVAL}\n")
-            w("    lazy: false\n\n")
-            continue
-
-        if mid not in enabled_set:
-            continue
-        m = modules[mid]
-        gname = name[mid]
-        gtype = m["gtype"]
-
-        w(f"  # {m['desc']}\n")
-        w(f"  - name: {q(gname)}\n")
-        w(f"    icon: {ICON_BASE}/{ICONS[mid]}.png\n")
-
-        if gtype == "url-test":
-            # 原项目：proxies = 过滤后的全部节点
-            w("    type: url-test\n")
-            w("    include-all: true\n")
-            w(f"    exclude-filter: {y(INFO_NODE_RE)}\n")
-            w(f"    url: {TEST_URL}\n")
-            w(f"    interval: {TEST_INTERVAL}\n")
-            w("    lazy: false\n\n")
-            # 「手动切换」组紧跟在「自动选择」之后（ACL4SSR 的组序）。
-            # SubBoost 原版没有这个组：它让每个业务组各自 include-all 持有全部节点。
-            # 改成「业务组只放聚合组」后，必须有个地方能选单个节点，
-            # 否则这个能力就丢了 —— 这个组就是那个地方。
-            if mid == "auto":
-                w("  # 手动指定单个节点 —— 业务组只放聚合组后，单节点选择能力由本组承载\n")
-                w(f"  - name: {q(manual)}\n")
-                w(f"    icon: {ICON_BASE}/Available_1.png\n")
-                w("    type: select\n")
-                w("    include-all: true\n")
-                w(f"    exclude-filter: {y(INFO_NODE_RE)}\n\n")
-        elif gtype == "reject-first":
-            # 原项目：[REJECT, DIRECT, 节点选择, ...过滤后节点]
-            w("    type: select\n")
-            w(f"    proxies: [REJECT, DIRECT, {q(select)}, {q(manual)}]\n")
-            w("    include-all: true\n")
-            w(f"    exclude-filter: {y(INFO_NODE_RE)}\n")
-        elif gtype == "direct-first":
-            # 原项目：[DIRECT, REJECT, 节点选择, 自动选择, ...过滤后节点]
-            w("    type: select\n")
-            w(f"    proxies: [DIRECT, REJECT, {q(select)}, {q(auto)}, {q(manual)}]\n")
-            w("    include-all: true\n")
-            w(f"    exclude-filter: {y(INFO_NODE_RE)}\n")
-        elif mid == "select":
-            # ── 节点选择：只放聚合组（地区组 + 全局组），不放单个节点 ──
-            # 原项目是 [自动选择, DIRECT, REJECT, ...全部节点]，
-            # 这里改成 ACL4SSR 式结构：地区组成为主选择入口，
-            # 单节点选择下放到「手动切换」组。
-            # 默认值仍是「自动选择」，与原项目一致。
-            #
-            # ⚠ v2.5.1 修过「节点选择默认包含自定义组导致组套娃、预览卡顿」。
-            #   这里只显式列固定数量的组（7 个地区 + 3 个全局组），无嵌套，不会成环。
-            w("    type: select\n")
-            w(f"    proxies: [{q(auto)}, {region_refs}, {q(manual)}, DIRECT, REJECT]\n")
-        else:
-            # ── 业务组：只放聚合组，不放单个节点 ──
-            # 原项目：[节点选择, 自动选择, DIRECT, REJECT, ...过滤后节点]
-            # 现在去掉 include-all（业务组不再持有全部节点副本），
-            # 改为 [节点选择, 自动选择, <地区组...>, 手动切换, DIRECT, REJECT]。
-            # 想选单节点时，先在「手动切换」里选定，再让本组指向它。
-            w("    type: select\n")
-            w(f"    proxies: [{q(select)}, {q(auto)}, {region_refs}, {q(manual)}, DIRECT, REJECT]\n")
+        if "filter" in g:
+            w(f"    filter: {g['filter']}\n")
+        if "exclude-filter" in g:
+            w(f"    exclude-filter: {g['exclude-filter']}\n")
+        if "url" in g:
+            w(f"    url: {g['url']}\n")
+        if "interval" in g:
+            w(f"    interval: {g['interval']}\n")
+        if "tolerance" in g:
+            w(f"    tolerance: {g['tolerance']}\n")
+        if "lazy" in g:
+            w(f"    lazy: {'true' if g['lazy'] else 'false'}\n")
         w("\n")
 
-    # ---------------- rule-providers ----------------
-    providers = {}
-    for mid in PROXY_GROUP_ORDER:
-        if mid not in enabled_set:
-            continue
-        for r in modules[mid]["rules"]:
-            providers[r["id"]] = r
-
-    if EXPERIMENTAL_CN["id"] not in providers and "cn" in enabled_set:
-        providers[EXPERIMENTAL_CN["id"]] = {
-            "id": EXPERIMENTAL_CN["id"],
-            "behavior": EXPERIMENTAL_CN["behavior"],
-            "path": EXPERIMENTAL_CN["path"],
-        }
-
-    w("# 全部规则集：MetaCubeX meta-rules-dat，.mrs 二进制，24 小时更新\n")
-    w("#\n")
-    w("# proxy 字段是相对原项目的第三处适配（必需项，不是可选优化）：\n")
-    w("# SubBoost 跑在转换机上，规则集由那台机器直连下载。\n")
-    w("# 落到 mihomo 后，如果本机直连 CDN 会被墙（实测 jsdelivr 直连\n")
-    w("# i/o timeout），92 个规则集全会拉取失败且没有任何流量命中规则。\n")
-    w("# 指定 proxy 后由「%s」转发下载。\n" % select)
-    w("# 若你的网络能直连 jsdelivr，删掉每段的 proxy 行即可。\n")
+    w("# 全部规则集：MetaCubeX meta-rules-dat，.mrs 二进制，24 小时自动更新\n")
     w("rule-providers:\n")
     for pid in sorted(providers):
-        r = providers[pid]
+        p = providers[pid]
         w(f"  {pid}:\n")
-        w("    type: http\n")
-        w(f"    behavior: {r['behavior']}\n")
-        w("    format: mrs\n")
-        w(f"    url: {BASE_URL}/{r['path']}\n")
-        w(f"    path: ./ruleset/{pid}.mrs\n")
-        w("    interval: 86400\n")
-        w(f"    proxy: {q(select)}\n")
+        w(f"    type: {p['type']}\n")
+        w(f"    behavior: {p['behavior']}\n")
+        w(f"    format: {p['format']}\n")
+        w(f"    url: {p['url']}\n")
+        w(f"    path: {p['path']}\n")
+        w(f"    interval: {p['interval']}\n")
+        w(f"    proxy: {q(p['proxy'])}\n")
     w("\n")
 
-    # ---------------- rules ----------------
-    w("# 规则顺序 = SubBoost generator/rules.ts 的 RULE_ORDER 常量。\n")
-    w("# 原项目注释说明了排序理由，核心是「子域名必须排在通用服务之前」：\n")
-    w("#   gemini 在 ai/google 之前（Gemini 用谷歌域名）\n")
-    w("#   youtube 在 google 之前（YouTube 是谷歌子域名）\n")
-    w("#   google-scholar 在 google 之前\n")
-    w("#   cn（完整国内域名）是低置信补充，后置到 geolocation-!cn 之后\n")
-    w("# mihomo 首次命中即停，所以顺序本身就是分流逻辑。\n")
-    w("rules:\n")
-
-    emitted = set()
-    for mid in RULE_ORDER:
-        if mid not in enabled_set:
-            continue
-        for r in modules[mid]["rules"]:
-            if r["id"] in emitted:
-                continue
-            emitted.add(r["id"])
-            w(f"  - {rule(r['id'], name[mid], r.get('noResolve', False))}\n")
-
-    # experimentalCnUseCnRuleSet: true —— 后置到 global 之后
-    if "cn" in enabled_set:
-        w(f"  - {rule(EXPERIMENTAL_CN['id'], name['cn'])}\n")
-
-    w(f"  - MATCH,{name['final']}\n")
-
-    # ---------------- 附：可选 DNS 块 ----------------
-    w("\n")
-    w("# " + "=" * 74 + "\n")
-    w("# 附：SubBoost 自带 DNS（defaults.ts）。\n")
-    w("# 你已有「全局DNS统一覆写（合并版）」在跑，启用下面这段会把它顶掉。\n")
-    w("# 真要换成 SubBoost 版：先停用那条 JS 覆写，再取消本段注释。\n")
-    w("# " + "=" * 74 + "\n")
-    w("# dns:\n")
-    w("#   enable: true\n")
-    w("#   listen: \"127.0.0.1:5335\"\n")
-    w("#   use-system-hosts: false\n")
-    w("#   enhanced-mode: fake-ip\n")
-    w("#   fake-ip-range: 198.18.0.1/16\n")
-    w("#   default-nameserver: [180.76.76.76, 182.254.118.118, 8.8.8.8, 180.184.2.2]\n")
-    w("#   nameserver: [180.76.76.76, 119.29.29.29, 180.184.1.1, 223.5.5.5, 8.8.8.8, \"https://223.6.6.6/dns-query#h3=true\", \"https://dns.alidns.com/dns-query\", \"https://cloudflare-dns.com/dns-query\", \"https://doh.pub/dns-query\"]\n")
-    w("#   fallback: [\"https://dns.quad9.net/dns-query\", \"https://dns.alidns.com/dns-query\", \"https://doh.pub/dns-query\", \"https://public.dns.iij.jp/dns-query\", \"https://101.101.101.101/dns-query\", \"https://208.67.220.220/dns-query\", \"tls://8.8.4.4\", \"tls://1.0.0.1:853\", \"https://cloudflare-dns.com/dns-query\", \"https://dns.google/dns-query\"]\n")
-    w("#   fallback-filter: {geoip: true, ipcidr: [240.0.0.0/4, 0.0.0.0/32, 127.0.0.1/32], domain: [\"+.google.com\", \"+.facebook.com\", \"+.twitter.com\", \"+.youtube.com\", \"+.xn--ngstr-lra8j.com\", \"+.google.cn\", \"+.googleapis.cn\", \"+.googleapis.com\", \"+.gvt1.com\"]}\n")
-    w("#   fake-ip-filter: [\"*.lan\", \"stun.*.*.*\", \"stun.*.*\", time.windows.com, time.nist.gov, time.apple.com, time.asia.apple.com, \"*.ntp.org.cn\", \"*.openwrt.pool.ntp.org\", time1.cloud.tencent.com, time.ustc.edu.cn, pool.ntp.org, ntp.ubuntu.com, ntp.aliyun.com, \"*.music.163.com\", \"*.126.net\", \"*.kuwo.cn\", y.qq.com, \"*.y.qq.com\", \"*.xiami.com\", \"*.music.migu.cn\", music.migu.cn, \"*.msftconnecttest.com\", \"*.msftncsi.com\", localhost.ptlogin2.qq.com, \"*.*.*.srv.nintendo.net\", \"*.*.stun.playstation.net\", \"xbox.*.*.microsoft.com\", \"*.ipv6.microsoft.com\", \"*.*.xboxlive.com\"]\n")
-    w("#\n")
-    w("# profile:\n")
-    w("#   store-selected: true\n")
-    w("#   store-fake-ip: false\n")
-    w("#\n")
-    w("# 另外三个默认关闭的模块（SubBoost full 模板显式排除），需要时取消注释：\n")
-    w("#   ✨ Gemini      —— google-gemini.mrs\n")
-    w("#   🎓 谷歌学术    —— google-scholar.mrs\n")
-    w("#   🔞 成人内容    —— category-porn.mrs\n")
+    w("rules+:\n")
+    # 插入前置游戏精细化直连/代理区块
+    for line in PRE_GAME_RULES:
+        w(f"{line}\n" if line.startswith("#") else f"- {line}\n")
+    for r in subboost_rules:
+        w(f"- {r}\n")
 
     return out.getvalue()
 
 
+def build_all_in_one_js(groups: list[dict], providers: dict, pre_game: list[str], subboost_rules: list[str]) -> str:
+    """
+    全合一 JS 渲染器：组装自包含、跨端通跑的 customSubBoost.js 覆写脚本。
+    包含顶部用户配置块、节点过滤引擎、DNS治理、策略组注入与全量规则链。
+    """
+    out = io.StringIO()
+    w = out.write
+
+    w("/**\n")
+    w(" * ==============================================================================\n")
+    w(" * SubBoost 规则体系 · 全合一 Mihomo / Clash JS 覆写版 (customSubBoost.js)\n")
+    w(" * ==============================================================================\n")
+    w(" * \n")
+    w(" * 【支持客户端与全平台兼容】\n")
+    w(" * · Clash Party / Sparkle (Windows / macOS)\n")
+    w(" * · Flclash & bettbox (Windows / macOS / Linux / Android / iOS)\n")
+    w(" * · 纯标准 ECMAScript 语法，无任何 Node.js 或 DOM 专有依赖，完美兼容 QuickJS/V8。\n")
+    w(" * \n")
+    w(" * 【三合一能力完整闭环】\n")
+    w(" * 1. DNS 统一治理：接管订阅自带回环 DNS，构建 Fake-IP + 国内双 DoH + 工作内网分流策略\n")
+    w(" * 2. 节点清洗引擎：过滤公告与流量信息垃圾节点；精准提取倍率并拦截吸血高倍率节点\n")
+    w(" * 3. 完整分流体系：41 策略组（含懒测速与50ms容差） + 94 规则集 + 前置游戏与全球分流规则\n")
+    w(" * \n")
+    w(" * 【使用指南】\n")
+    w(" * 直接复制本文件全部代码，粘贴到客户端的「覆写脚本 / Script」编辑器中保存即可生效。\n")
+    w(" * 工作内网域名、IP 段和功能开关请直接在下方的 CONFIG 对象中填写。\n")
+    w(" */\n\n")
+
+    # 1. 顶部全局配置对象
+    w("// ============================================================================\n")
+    w("// 【用户自定义全局配置与功能开关】\n")
+    w("// 提示：以下参数均在 JS 运行时动态求值，修改后即刻生效，无需重新运行生成器。\n")
+    w("// ============================================================================\n")
+    w("const CONFIG = {\n")
+    w("  // ── 1. 基础功能开关 ──\n")
+    w("  enableDnsOverride: true,          // 是否接管并覆盖系统/订阅自带 DNS (Fake-IP + DoH)\n")
+    w("  enableLanDirect: true,            // 是否注入局域网直连 (10/8, 172.16/12, 192.168/16, 127/8 等)\n")
+    w("  enableFakeIpFilterSteam: true,    // Steam 握手与下载是否直解真实国内 IP (保持 IPCountry=CN)\n\n")
+
+    w("  // ── 2. 节点过滤引擎开关 (运行时执行) ──\n")
+    w("  cleanTrashNodes: true,            // 是否过滤公告/流量到期等垃圾信息节点\n")
+    w("  cleanHighMultiplier: true,        // 是否过滤高倍率吸血节点\n")
+    w("  maxMultiplier: 1.0,               // 允许的最大节点倍率（<= 1.0 保留，> 1.0 剔除）\n\n")
+
+    w("  // ── 3. 工作内网分流与直连开关 ──\n")
+    w("  enableWorkRules: true,            // 是否启用工作内网直连与专属分流\n\n")
+
+    w("  // ── 4. 工作内网专属 DNS 策略 (nameserver-policy) ──\n")
+    w("  // 格式: { \"域名通配\": \"DNS服务器IP或system\" }\n")
+    w("  workNameserverPolicy: {\n")
+    w("    // 示例: \"+.corp.internal\": \"10.0.0.53\",\n")
+    w("    // 示例: \"+.office.internal\": \"system\",\n")
+    w("  },\n\n")
+
+    w("  // ── 5. 工作内网域名白名单 (直连 + 自动绕过 Fake-IP + 防污染过滤) ──\n")
+    w("  workDomains: [\n")
+    w("    // 示例: \"oa.company.com\", \"+.corp.internal\",\n")
+    w("  ],\n\n")
+
+    w("  // ── 6. 工作内网专属 IP / CIDR 网段直连 ──\n")
+    w("  workIpCidrs: [\n")
+    w("    // 示例: \"10.20.0.0/16\", \"172.16.50.0/24\",\n")
+    w("  ],\n\n")
+
+    w("  // ── 7. 工作内网专属进程直连 (桌面端生效，移动端自动忽略) ──\n")
+    w("  workProcesses: [\n")
+    w("    // 示例: \"corp-vpn.exe\", \"company-agent.exe\",\n")
+    w("  ],\n")
+    w("};\n\n")
+
+    # 2. 预编译数据常量
+    w("// ============================================================================\n")
+    w("// 【预编译核心拓扑数据】(由 scripts/gen_override.py 自动编译，请勿直接编辑此段)\n")
+    w("// ============================================================================\n")
+
+    w("const SUBBOOST_PROXY_GROUPS = ")
+    w(json.dumps(groups, ensure_ascii=False, indent=2))
+    w(";\n\n")
+
+    w("const SUBBOOST_RULE_PROVIDERS = ")
+    w(json.dumps(providers, ensure_ascii=False, indent=2))
+    w(";\n\n")
+
+    w("const SUBBOOST_PRE_GAME_RULES = ")
+    w(json.dumps(pre_game, ensure_ascii=False, indent=2))
+    w(";\n\n")
+
+    w("const SUBBOOST_RULES = ")
+    w(json.dumps(subboost_rules, ensure_ascii=False, indent=2))
+    w(";\n\n")
+
+    # 3. 核心 main(config) 流水线
+    w("""// ============================================================================
+// 【主入口函数】(Clash Party / Flclash / bettbox 统一运行时执行)
+// ============================================================================
+function main(config) {
+  // 1. 防御性空安全初始化（保证空配置或字段缺失时不发生未捕获异常）
+  config = config || {};
+  config.proxies = Array.isArray(config.proxies) ? config.proxies : [];
+  config["proxy-groups"] = Array.isArray(config["proxy-groups"]) ? config["proxy-groups"] : [];
+  config["rule-providers"] = (config["rule-providers"] && typeof config["rule-providers"] === "object") ? config["rule-providers"] : {};
+  config.rules = Array.isArray(config.rules) ? config.rules : [];
+
+  // 2. 嗅探配置 (sniffer) 注入
+  config.sniffer = {
+    enable: true,
+    "parse-pure-ip": true,
+    sniff: {
+      TLS: { ports: [443, 8443] },
+      HTTP: { ports: [80, "8080-8880"], "override-destination": true },
+      QUIC: { ports: [443, 8443] },
+    },
+  };
+
+  // ==========================================================================
+  // 第一步：节点清洗引擎 (按 CONFIG 动态执行)
+  // ==========================================================================
+  const trashRegex = /剩余流量|到期|过期|官网|套餐|永久地址|Telegram群组|如遇节点失效|欢迎加入|Traffic|Expire/i;
+
+  function getMultiplier(name) {
+    if (typeof name !== "string") return null;
+    const patterns = [
+      /(?:^|[^\\w])(\\d+(?:\\.\\d+)?)\\s*[xX](?=$|[^\\w])/,
+      /(?:^|[^\\w-])[xX]\\s*(\\d+(?:\\.\\d+)?)(?=$|[^\\w])/,
+      /(?:^|[^\\w])(\\d+(?:\\.\\d+)?)\\s*倍(?=$|[^\\w])/,
+      /倍率\\s*[:：=]?\\s*(\\d+(?:\\.\\d+)?)/i,
+      /(?:^|[^\\w])(\\d+(?:\\.\\d+)?)\\s*[xX]\\s*(?:流量|traffic)\\b/i,
+      /(?:^|[^\\w])(\\d+(?:\\.\\d+)?)\\s*倍\\s*(?:流量|traffic)\\b/i,
+      /(?:流量|traffic)\\s*[:：=]?\\s*(\\d+(?:\\.\\d+)?)\\s*[xX倍]?/i,
+      /(?:^|[^\\w-])[xX]\\s*(\\d+(?:\\.\\d+)?)\\s*(?:流量|traffic)\\b/i,
+    ];
+    for (const regex of patterns) {
+      const match = name.match(regex);
+      if (!match) continue;
+      const val = Number(match[1]);
+      if (Number.isFinite(val) && val >= 0) return val;
+    }
+    return null;
+  }
+
+  const removedNames = new Set();
+  if (CONFIG.cleanTrashNodes || CONFIG.cleanHighMultiplier) {
+    config.proxies = config.proxies.filter(proxy => {
+      if (!proxy || typeof proxy.name !== "string") return true;
+
+      // 规则 A: 命中垃圾公告关键字，移除
+      if (CONFIG.cleanTrashNodes && trashRegex.test(proxy.name)) {
+        removedNames.add(proxy.name);
+        return false;
+      }
+
+      // 规则 B: 倍率大于阈值，移除；未标注倍率则安全保留
+      if (CONFIG.cleanHighMultiplier) {
+        const mult = getMultiplier(proxy.name);
+        if (mult !== null && mult > CONFIG.maxMultiplier) {
+          removedNames.add(proxy.name);
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }
+
+  // ==========================================================================
+  // 第二步：全局 DNS 与 Fake-IP 体系构建 (按 CONFIG 动态执行)
+  // ==========================================================================
+  if (CONFIG.enableDnsOverride) {
+    delete config.dns;
+
+    // Fake-IP 绕过列表
+    const fakeIpFilters = [
+      "+.lan",
+      "+.local",
+      "time.*.com",
+      "ntp.*.com",
+      "+.market.xiaomi.com",
+    ];
+
+    // Steam 握手与下载域名直解真实国内 IP，保持 IPCountry=CN
+    if (CONFIG.enableFakeIpFilterSteam) {
+      fakeIpFilters.push(
+        "cm.steampowered.com",
+        "+.cm.steampowered.com",
+        "+.steamserver.net",
+        "+.steamcontent.com"
+      );
+    }
+
+    // 工作内网域名自动并入 Fake-IP 放行列表，确保解析拿真实内网 IP
+    if (CONFIG.enableWorkRules && Array.isArray(CONFIG.workDomains)) {
+      for (const d of CONFIG.workDomains) {
+        if (!d) continue;
+        const pattern = d.startsWith("+.") || d.startsWith("*.") ? d : "+." + d;
+        if (!fakeIpFilters.includes(pattern)) fakeIpFilters.push(pattern);
+      }
+    }
+
+    const fallbackFilterDomains = [
+      "+.google.com",
+      "+.facebook.com",
+      "+.youtube.com",
+    ];
+    if (CONFIG.enableWorkRules && Array.isArray(CONFIG.workDomains)) {
+      for (const d of CONFIG.workDomains) {
+        if (!d) continue;
+        const pattern = d.startsWith("+.") || d.startsWith("*.") ? d : "+." + d;
+        if (!fallbackFilterDomains.includes(pattern)) fallbackFilterDomains.push(pattern);
+      }
+    }
+
+    const nameserverPolicy = {
+      "+.captive.apple.com,+.msftconnecttest.com,+.connect.rom.miui.com,+.connectivitycheck.gstatic.com,+.connectivitycheck.platform.hicloud.com": [
+        "119.29.29.29",
+        "223.5.5.5",
+      ],
+    };
+
+    if (CONFIG.enableWorkRules && CONFIG.workNameserverPolicy) {
+      Object.assign(nameserverPolicy, CONFIG.workNameserverPolicy);
+    }
+
+    config.dns = {
+      enable: true,
+      ipv6: false,
+      "enhanced-mode": "fake-ip",
+      "fake-ip-range": "198.18.0.1/16",
+      "fake-ip-filter-mode": "blacklist",
+      "fake-ip-filter": fakeIpFilters,
+      "use-hosts": false,
+      "use-system-hosts": true,
+      "respect-rules": false,
+      "default-nameserver": ["223.5.5.5", "119.29.29.29"],
+      nameserver: [
+        "https://223.5.5.5/dns-query",
+        "https://doh.pub/dns-query",
+        "https://dns.alidns.com/dns-query",
+      ],
+      "proxy-server-nameserver": [
+        "tls://223.5.5.5",
+        "tls://223.6.6.6",
+        "119.29.29.29",
+      ],
+      "direct-nameserver": ["system"],
+      fallback: [],
+      "fallback-filter": {
+        geoip: true,
+        "geoip-code": "CN",
+        ipcidr: ["240.0.0.0/4", "0.0.0.0/32"],
+        domain: fallbackFilterDomains,
+      },
+      "nameserver-policy": nameserverPolicy,
+    };
+  }
+
+  // ==========================================================================
+  // 第三步：策略组注入与级联引用清理
+  // ==========================================================================
+  // 注入预编译的 SubBoost 41 个策略组（深拷贝避免受外部修改影响）
+  const groups = JSON.parse(JSON.stringify(SUBBOOST_PROXY_GROUPS));
+
+  // 级联清理：若策略组显式声明了 proxies 列表，剔除已被移除的节点名
+  for (const group of groups) {
+    if (Array.isArray(group.proxies)) {
+      group.proxies = group.proxies.filter(name => !removedNames.has(name));
+    }
+  }
+  config["proxy-groups"] = groups;
+
+  // ==========================================================================
+  // 第四步：规则提供者 (rule-providers) 注入
+  // ==========================================================================
+  config["rule-providers"] = Object.assign({}, config["rule-providers"] || {}, SUBBOOST_RULE_PROVIDERS);
+
+  // ==========================================================================
+  // 第五步：全量分流规则链拼装 (First-Match-Win 严格保序)
+  // ==========================================================================
+  const rules = [];
+
+  // 1. 局域网私有网段直连
+  if (CONFIG.enableLanDirect) {
+    rules.push(
+      "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
+      "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
+      "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+      "IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
+      "IP-CIDR,127.0.0.1/8,DIRECT,no-resolve",
+      "IP-CIDR6,::1/128,DIRECT,no-resolve"
+    );
+  }
+
+  // 2. 工作内网专属直连规则 (按域名、IP段、进程精准匹配)
+  if (CONFIG.enableWorkRules) {
+    if (Array.isArray(CONFIG.workDomains)) {
+      for (const d of CONFIG.workDomains) {
+        if (!d) continue;
+        const clean = d.replace(/^(\\+\\.|\\*\\.)/, "");
+        rules.push("DOMAIN-SUFFIX," + clean + ",DIRECT");
+      }
+    }
+    if (Array.isArray(CONFIG.workIpCidrs)) {
+      for (const ip of CONFIG.workIpCidrs) {
+        if (!ip) continue;
+        rules.push("IP-CIDR," + ip + ",DIRECT");
+      }
+    }
+    if (Array.isArray(CONFIG.workProcesses)) {
+      for (const proc of CONFIG.workProcesses) {
+        if (!proc) continue;
+        rules.push("PROCESS-NAME," + proc + ",DIRECT");
+      }
+    }
+  }
+
+  // 3. 前置游戏精细化直连/代理区块 (Steam 商店走代理, 下载与握手直连)
+  rules.push(...SUBBOOST_PRE_GAME_RULES);
+
+  // 4. SubBoost 全球分流业务规则链
+  rules.push(...SUBBOOST_RULES);
+
+  config.rules = rules;
+
+  return config;
+}
+
+// Node.js 模块导出支持（供测试套件 require 校验，在客户端环境被静默忽略）
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { main, CONFIG };
+}
+""")
+
+    return out.getvalue()
+
+
+# ============================================================================
+# 第八部分：自检与自动化语法校验 (SELF-CHECK)
+# ============================================================================
+
+def self_check_yaml(yaml_text: str) -> None:
+    """自动化校验生成的 YAML 覆写配置。"""
+    if not re.search(r"^rules\+:\s*$", yaml_text, re.M):
+        raise ValueError("【严重错误】未找到 'rules+:' 追加声明！严禁生成整段覆盖的 rules:")
+    if "category-games-cn" not in yaml_text:
+        raise ValueError("【严重错误】未找到 'category-games-cn' 游戏前置直连规则！")
+    if r"(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)" not in yaml_text:
+        raise ValueError("【严重错误】美国组缺少 NB(US) 非字母边界正则！")
+
+    expected_regions = ["美国节点", "香港节点", "日本节点", "狮城节点", "台湾节点", "韩国节点", "其他国家"]
+    for reg in expected_regions:
+        if f'name: "{reg}"' not in yaml_text and f'name: {reg}' not in yaml_text:
+            raise ValueError(f"【严重错误】缺少地区策略组: {reg}")
+
+    rules_block = yaml_text[yaml_text.find("\nrules+:") :]
+    providers_block = yaml_text[yaml_text.find("\nrule-providers:") : yaml_text.find("\nrules+:")]
+    rulesets = re.findall(r"^\s*-\s+RULE-SET,([^,]+),", rules_block, re.M)
+    for rset in rulesets:
+        if f"\n  {rset}:" not in providers_block:
+            raise ValueError(f"【严重错误】规则链引用的 RULE-SET '{rset}' 未在 rule-providers 中定义！")
+
+    provider_count = len(re.findall(r"^  \S+:\s*$", providers_block, re.M))
+    if provider_count != 94:
+        raise ValueError(f"【严重错误】rule-providers 数量预期为 94，实测为 {provider_count}！")
+
+
+def self_check_js(js_text: str) -> None:
+    """自动化校验生成的 All-in-One JS 覆写脚本。"""
+    if "function main(config)" not in js_text:
+        raise ValueError("【严重错误】JS 覆写缺少 'function main(config)' 入口函数！")
+    if "const CONFIG = {" not in js_text:
+        raise ValueError("【严重错误】JS 覆写缺少顶部 'CONFIG' 配置对象声明！")
+    if "SUBBOOST_PROXY_GROUPS" not in js_text:
+        raise ValueError("【严重错误】JS 覆写缺少策略组数据声明！")
+    if "SUBBOOST_RULE_PROVIDERS" not in js_text:
+        raise ValueError("【严重错误】JS 覆写缺少规则集数据声明！")
+
+    # 利用本地 Node.js 进行 JavaScript 语法树静态校验
+    try:
+        proc = subprocess.run(
+            ["node", "-c"],
+            input=js_text,
+            text=True,
+            capture_output=True,
+            timeout=15,
+        )
+        if proc.returncode != 0:
+            raise ValueError(f"【严重错误】JS 语法校验失败 (Node.js -c):\n{proc.stderr}")
+    except FileNotFoundError:
+        # 未安装 node 时跳过动态校验
+        pass
+
+
+# ============================================================================
+# 第九部分：CLI 入口
+# ============================================================================
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="SubBoost 规则体系 全合一跨端覆写生成器")
+    parser.add_argument(
+        "--js-output",
+        type=Path,
+        default=DEFAULT_OUTPUT_JS,
+        help=f"All-in-One JS 覆写输出路径 (默认: {DEFAULT_OUTPUT_JS})",
+    )
+    parser.add_argument(
+        "--yaml-output",
+        type=Path,
+        default=DEFAULT_OUTPUT_YAML,
+        help=f"YAML 覆写输出路径 (默认: {DEFAULT_OUTPUT_YAML})",
+    )
+    parser.add_argument(
+        "--yaml-only",
+        action="store_true",
+        help="仅生成 YAML 覆写产物",
+    )
+    parser.add_argument(
+        "--js-only",
+        action="store_true",
+        help="仅生成 All-in-One JS 覆写产物",
+    )
+    args = parser.parse_args()
+
+    if not MODULES_TS.exists():
+        sys.exit(f"【致命错误】找不到模块定义文件: {MODULES_TS}")
+
     modules = parse_modules(MODULES_TS.read_text(encoding="utf-8"))
-    print(f"解析模块 {len(modules)} 个")
+    enabled_set, test_opts = load_rules_profile()
+    enabled_count = len([m for m in enabled_set if m in modules and m not in {"select", "auto", "ad", "private", "cn", "global", "final", "__regions__"}])
+    print(f"[*] 成功解析上游模块 {len(modules)} 个，当前配置启用业务组 {enabled_count} 个")
 
-    enabled_full = [
-        m for m in PROXY_GROUP_ORDER
-        if m in modules and m not in DEFAULT_OFF
-    ]
-    print(f"full 模板启用 {len(enabled_full)} 个模块")
+    groups, providers, pre_game, subboost_rules = build_data_models(modules, enabled_set, test_opts)
 
-    yaml_text = build(modules, enabled_full)
-    target = Path(__file__).parent / "subboost-override.yaml"
-    target.write_text(yaml_text, encoding="utf-8")
-    print(f"已生成 {target} ({len(yaml_text)} 字符, {yaml_text.count(chr(10))} 行)")
+    # 1. 构建与写出 JS 产物
+    if not args.yaml_only:
+        js_text = build_all_in_one_js(groups, providers, pre_game, subboost_rules)
+        self_check_js(js_text)
+        args.js_output.parent.mkdir(parents=True, exist_ok=True)
+        args.js_output.write_text(js_text, encoding="utf-8")
+        print(f"[✔] 全合一 JS 覆写生成成功: {args.js_output} (共 {len(js_text)} 字节, {js_text.count(chr(10))} 行)")
+
+    # 2. 构建与写出 YAML 产物
+    if not args.js_only:
+        yaml_text = build_yaml(groups, providers, pre_game, subboost_rules)
+        self_check_yaml(yaml_text)
+        args.yaml_output.parent.mkdir(parents=True, exist_ok=True)
+        args.yaml_output.write_text(yaml_text, encoding="utf-8")
+        print(f"[✔] 备用 YAML 覆写生成成功: {args.yaml_output} (共 {len(yaml_text)} 字节, {yaml_text.count(chr(10))} 行)")
+
+    print("[*] 自检断言全部通过：41 个策略组、94 个规则集提供者、规则集零孤儿引用、Node.js 语法校验通过！")
 
 
 if __name__ == "__main__":

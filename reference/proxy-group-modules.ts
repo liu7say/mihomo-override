@@ -1,15 +1,24 @@
 /**
- * 分流代理组预设（静态定义）
- *
- * 从 `proxy-groups.ts` 中拆分出来以降低单文件长度。
- *
- * 注意：该文件只包含静态数据与类型定义。
+ * ==============================================================================
+ * SubBoost 核心分流代理组模块预设定义 (proxy-group-modules.ts)
+ * ==============================================================================
+ * 
+ * 【数据源地位】
+ * 本文件是 scripts/gen_override.py 提取业务策略组与规则集元数据的基础数据源。
+ * 定义了包含 36 个预设分流组（节点选择、自动选择、广告、AI、流媒体、游戏等）的静态数据表。
+ * 
+ * 【字段约定规范】
+ * - id: 模块唯一代号（全小写与连字符），生成器通过 RULE_ORDER 引用它
+ * - name: 原始组名（带 Emoji），生成器在生成时会去除 Emoji 并由 Qure 图标接管
+ * - groupType: 策略组工作模式（select / url-test / direct-first / reject-first）
+ * - rules: 规则集列表，behavior 区分 domain (域名) 与 ipcidr (IP段)，noResolve 控制 DNS 解析
+ * 
+ * ⚠ 注意事项：
+ * 生成器内部使用正则引擎严格解析模块对象，新增或编辑模块时请保持键名顺序与换行缩进一致。
  */
 
-/**
- * 分流代理组规则
- */
 import type { ProxyGroupGroupType } from "@subboost/core/types/config";
+
 
 export interface ProxyGroupRule {
   id: string;

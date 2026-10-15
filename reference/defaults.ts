@@ -1,4 +1,18 @@
+/**
+ * ==============================================================================
+ * SubBoost 上游参考：默认基础配置与模板参数 (defaults.ts)
+ * ==============================================================================
+ * 
+ * 【主要作用】
+ * 提供 SubBoost 核心运行时默认值：
+ * - testUrl: https://www.gstatic.com/generate_204 极轻量连通性检查地址
+ * - testInterval: 300 秒探测间隔
+ * - mixedPort: 7897 默认本地混合端口
+ * - DEFAULT_DNS_CONFIG: Fake-IP 模式 DoH/DoT 完整 DNS 栈
+ */
+
 import { DEFAULT_DNS_CONFIG } from "@subboost/core/generator/dns";
+
 import { DEFAULT_RULE_PROVIDER_BASE_URL } from "@subboost/core/rules/metadata";
 import { TEMPLATES } from "@subboost/core/templates";
 import { SUBBOOST_TEMPLATE_CONFIG_SCHEMA } from "@subboost/core/templates/config-template";

@@ -1,0 +1,21 @@
+{
+  "_comment": "私有工作配置示例模板。请复制本文件为 private_work.json 并填入您专属的内网参数",
+  "enableWorkRules": true,
+  "workNameserverPolicy": {
+    "+.corp.internal": "10.0.0.53",
+    "+.company.com": "system"
+  },
+  "workDomains": [
+    "oa.company.com",
+    "git.company.com",
+    "+.corp.internal"
+  ],
+  "workIpCidrs": [
+    "10.20.0.0/16",
+    "192.168.100.1/32"
+  ],
+  "workProcesses": [
+    "corp-vpn.exe",
+    "internal-client.exe"
+  ]
+}

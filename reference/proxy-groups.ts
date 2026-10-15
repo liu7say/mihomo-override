@@ -1,7 +1,19 @@
 /**
- * 分流代理组生成器
- * 合并代理组和分流规则为统一的"分流代理组"概念
+ * ==============================================================================
+ * SubBoost 上游分流代理组核心生成器 (proxy-groups.ts)
+ * ==============================================================================
+ * 
+ * 【架构核心思想】
+ * 在传统订阅转换器中，“策略组 (Proxy Group)”与“分流规则 (Rule)”是彼此割裂的概念。
+ * SubBoost 提出将二者统一为「分流代理组 (Proxy Group Module)」，使业务模块自包含自身的规则集定义与匹配模式。
+ * 
+ * 【本项目的继承与演进】
+ * 1. 继承：严格遵循 SubBoost 的 PROXY_GROUP_ORDER 与 getModulesForTemplate("full") 模板过滤逻辑。
+ * 2. 演进：SubBoost 原版靠在各个业务组中反复 include-all 全量节点来选节点，导致内存极重且 UI 卡顿；
+ *    本项目通过新增「手动切换」组与 7 个聚合地区组，将业务组改为纯聚合引用（ACL4SSR 式），
+ *    极大精简了客户端内存开销与测速压力。
  */
+
 
 import type { ParsedNode } from "@subboost/core/types/node";
 import { DEFAULT_LOAD_BALANCE_STRATEGY } from "@subboost/core/types/config";

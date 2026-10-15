@@ -33,3 +33,6 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
+ 
+# 私有工作内网敏感配置（绝不进版本库）
+config/private_work.json

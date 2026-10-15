@@ -7,11 +7,17 @@ from pathlib import Path
 
 import yaml
 
-SB = Path(__file__).parent
+HERE = Path(__file__).resolve().parent
+REPO_ROOT = HERE.parent
+OVERRIDE_YAML = REPO_ROOT / "override" / "customSubBoost.yaml"
+if not OVERRIDE_YAML.exists():
+    OVERRIDE_YAML = REPO_ROOT / "override" / "1b0sb00st01.yaml"
+
 BASE_PREFIX = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo"
 
 
 def head(url: str, timeout: int = 40, retries: int = 4) -> tuple[int, int, str]:
+    """带有指数退避重试的 HTTP GET 状态与体积探测函数。"""
     req = urllib.request.Request(url, method="GET", headers={"User-Agent": "curl/8.0"})
     last = (0, 0, "")
     for attempt in range(retries):
@@ -19,19 +25,23 @@ def head(url: str, timeout: int = 40, retries: int = 4) -> tuple[int, int, str]:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return resp.status, resp.length or 0, ""
         except urllib.error.HTTPError as e:
-            # 4xx 是确定性失败，重试无意义
+            # 4xx 状态码（除 429 外）表示服务端资源确定不存在，重试无意义
             if e.code != 429:
                 return e.code, 0, str(e.reason)
-            last = (e.code, 0, "rate limited")
-        except Exception as e:  # noqa: BLE001
+            last = (e.code, 0, "rate limited (429 限流)")
+        except Exception as e:
             last = (0, 0, type(e).__name__ + ": " + str(e)[:70])
         time.sleep(2.5 * (attempt + 1))
     return last
 
 
 def main() -> int:
-    data = yaml.safe_load((SB / "subboost-override.yaml").read_text(encoding="utf-8"))
+    if not OVERRIDE_YAML.exists():
+        sys.exit(f"【错误】找不到覆写文件: {OVERRIDE_YAML}")
+
+    data = yaml.safe_load(OVERRIDE_YAML.read_text(encoding="utf-8"))
     providers = data["rule-providers"]
+
 
     items = []
     for pid, cfg in providers.items():

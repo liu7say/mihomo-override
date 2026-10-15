@@ -14,6 +14,13 @@ from pathlib import Path
 
 import yaml
 
+HERE = Path(__file__).resolve().parent
+REPO_ROOT = HERE.parent
+OVERRIDE_YAML = REPO_ROOT / "override" / "customSubBoost.yaml"
+if not OVERRIDE_YAML.exists():
+    OVERRIDE_YAML = REPO_ROOT / "override" / "1b0sb00st01.yaml"
+
+
 # 配置根目录：优先环境变量 MIHOMO_PARTY_BASE，缺省从用户环境动态推导
 ROOT = Path(os.environ.get("MIHOMO_PARTY_BASE") or (Path.home() / "AppData" / "Roaming" / "mihomo-party"))
 SB = ROOT / "test" / "_sb"
@@ -42,18 +49,30 @@ def api(path, timeout=30):
 
 
 def main() -> int:
-    ov = yaml.safe_load((SB / "subboost-override.yaml").read_text(encoding="utf-8"))
+    if not OVERRIDE_YAML.exists():
+        sys.exit(f"【错误】找不到覆写文件: {OVERRIDE_YAML}")
+
+    if not CORE.exists():
+        print(f"[*] 未检测到测试内核: {CORE}，跳过动态实测。")
+        return 0
+
+    ov = yaml.safe_load(OVERRIDE_YAML.read_text(encoding="utf-8"))
     total_bad = 0
     total_empty = 0
 
     for pid, label in SUBS.items():
-        raw = yaml.safe_load((ROOT / "profiles" / f"{pid}.yaml").read_text(encoding="utf-8"))
+        profile_path = ROOT / "profiles" / f"{pid}.yaml"
+        if not profile_path.exists():
+            continue
+
+        raw = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
         merged = dict(raw)
         merged.update({
             "proxy-groups": ov["proxy-groups"],
-            "rules": ov["rules"],
+            "rules": ov.get("rules+") or ov.get("rules") or [],
             "rule-providers": ov["rule-providers"],
             "mode": "rule",
+
             "mixed-port": 17901,
             "external-controller": "127.0.0.1:19101",
             "log-level": "warning",
