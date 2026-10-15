@@ -1,0 +1,35 @@
+# 本仓库只收配置产物、生成器、脚本与文档。
+# 以下内容在配置根（如 %APPDATA%\mihomo-party）下，不进版本库。
+
+# 验证内核（61 MB）
+mihomo*.exe
+
+# geo 库
+*.mmdb
+*.dat
+*.metadb
+BundleMRS.7z
+
+# 规则集缓存与合并产物
+ruleset/
+cache.db
+config.yaml
+!override/*.yaml
+
+# 构建输出
+merged/
+subboost-override.yaml
+
+# 日志
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

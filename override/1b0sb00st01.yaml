@@ -1,0 +1,1229 @@
+# ==========================================================================
+# SubBoost 规则体系 · mihomo 覆写版
+# 复刻自 github.com/SubBoost/subboost (AGPL-3.0)，规则源 MetaCubeX/meta-rules-dat
+#
+# 由 test/_sb/gen_override.py 生成，请勿手改 —— 下次生成会覆盖。
+# 改配置改生成器后重跑；校验跑 test/_sb/verify.py（19 项静态检查）。
+#
+# 相对原项目的落地适配（详见生成器内注释）：
+#   · 规则集走 jsdelivr 镜像（原版 github raw 国内超时）
+#   · 每个规则集加 proxy: 节点选择 —— 缺了会静默全量拉取失败
+#   · 节点成员用 include-all + exclude-filter 表达（原版直写节点名）
+#   · 补 6 个地区 url-test 组（原版 v2.5.0 起移除）
+#   · 业务组只放聚合组，单节点选择交给新增的「手动切换」
+#   · 地区缩写用非字母边界而非单词边界 —— 兼容 US01/HK_02 这类命名
+#   · 「其他国家」用 select + DIRECT —— url-test 空组会让内核求值崩溃
+#
+# 注意：
+#   · 勿与「GPT写的」同时启用，两者 proxy-groups 与 rules 均整段替换
+#   · DNS 不在本覆写，由「全局DNS统一覆写（合并版）」负责
+#   · 地理库由内置mihomo.yaml 提供，此处不写
+#   · 改名会重置已保存的组选择，首次启用需重挑默认节点
+# ==========================================================================
+
+
+sniffer:
+  enable: true
+  parse-pure-ip: true
+  sniff:
+    TLS:
+      ports: [443, 8443]
+    HTTP:
+      ports: [80, "8080-8880"]
+      override-destination: true
+    QUIC:
+      ports: [443, 8443]
+
+proxy-groups:
+
+  # 手动选择代理节点
+  - name: "节点选择"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Proxy.png
+    type: select
+    proxies: [自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # 自动选择最快节点
+  - name: "自动选择"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Auto.png
+    type: url-test
+    include-all: true
+    exclude-filter: ^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]|^(余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    lazy: false
+
+  # 手动指定单个节点 —— 业务组只放聚合组后，单节点选择能力由本组承载
+  - name: "手动切换"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available_1.png
+    type: select
+    include-all: true
+    exclude-filter: ^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]|^(余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新
+
+  # 拦截广告和追踪器
+  - name: "广告拦截"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdBlack.png
+    type: select
+    proxies: [REJECT, DIRECT, 节点选择, 手动切换]
+
+  # ChatGPT、Claude、Copilot 等
+  - name: "AI 服务"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AI.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # YouTube 视频、YouTube Music
+  - name: "油管视频"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/YouTube.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Google 搜索、Gmail、Drive
+  - name: "谷歌服务"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Google.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Microsoft 365、Azure、Bing
+  - name: "微软服务"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Microsoft.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # iCloud、App Store
+  - name: "苹果服务"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Apple.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Telegram 消息和通话
+  - name: "电报消息"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Telegram.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Twitter/X 社交平台
+  - name: "推特/X"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Twitter.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Facebook、Instagram
+  - name: "Meta 系"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Facebook.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Discord 语音聊天
+  - name: "Discord"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Discord.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # TikTok、Line、Reddit
+  - name: "其他社交"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Line.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Netflix 视频
+  - name: "奈飞"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Netflix.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Disney+ 视频
+  - name: "迪士尼+"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Disney.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # HBO、Hulu、Prime Video
+  - name: "欧美流媒体"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/ForeignMedia.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # 巴哈姆特、Abema、Viu、KKTV 等
+  - name: "亚洲流媒体"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AbemaTV.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Steam 游戏平台
+  - name: "Steam"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Steam.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Epic、EA、Ubisoft、GOG
+  - name: "PC 游戏"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Game.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # PlayStation、Xbox
+  - name: "主机游戏"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Xbox.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # GitHub、GitLab、Bitbucket
+  - name: "代码托管"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/GitHub.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # AWS、Azure、Cloudflare 等
+  - name: "云服务"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Server.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Docker、npm、JetBrains
+  - name: "开发工具"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/App_Store.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Dropbox、Box、Notion 等
+  - name: "网盘存储"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/OneDrive.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # PayPal、Stripe、Wise 等
+  - name: "支付平台"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/PayPal.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Binance 等
+  - name: "加密货币"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/PayPal.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Coursera、Udemy、学术资源等
+  - name: "教育学术"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Scholar.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # BBC、CNN、NYT、Bloomberg 等
+  - name: "新闻资讯"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Media.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # Amazon、eBay、Shopify 等
+  - name: "海淘购物"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Amazon.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # 局域网和私有IP直连
+  - name: "私有网络"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Lock.png
+    type: select
+    proxies: [DIRECT, REJECT, 节点选择, 自动选择, 手动切换]
+
+  # 国内网站和服务直连
+  - name: "国内服务"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/CN.png
+    type: select
+    proxies: [DIRECT, REJECT, 节点选择, 自动选择, 手动切换]
+
+  # ===== 地区 url-test 组 =====
+  # 官方 REGION_PRESETS 关键词表 + \b 词边界 + 防误命中 exclude。
+  # SubBoost 把地区做成了自定义组的可选筛选维度（v2.5.0 起），
+  # 这里作为独立 url-test 组补回，排在兜底组（非中国/漏网之鱼）之前。
+  # 「其他国家」用 exclude-filter 反向实现官方的 other 预设：
+  # 把所有已知地区关键词排掉，剩下的就是它。
+
+  - name: "美国节点"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/United_States.png
+    type: url-test
+    include-all: true
+    filter: (?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|United.?States|America
+    exclude-filter: ^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]|^(余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新|(?i)Australia|俄罗斯|Russia|Belarus|巴西|Brazil
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    lazy: true
+
+  - name: "香港节点"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Hong_Kong.png
+    type: url-test
+    include-all: true
+    filter: (?i)香港|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|Hong.?Kong|HKG
+    exclude-filter: ^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]|^(余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    lazy: true
+
+  - name: "日本节点"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Japan.png
+    type: url-test
+    include-all: true
+    filter: (?i)日本|东京|大阪|川日|沪日|深日|泉日|埼玉|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|Japan|Tokyo|Osaka
+    exclude-filter: ^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]|^(余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    lazy: true
+
+  - name: "狮城节点"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Singapore.png
+    type: url-test
+    include-all: true
+    filter: (?i)新加坡|狮城|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|Singapore
+    exclude-filter: ^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]|^(余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    lazy: true
+
+  - name: "台湾节点"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Taiwan.png
+    type: url-test
+    include-all: true
+    filter: (?i)台湾|台北|台中|新北|彰化|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|Taiwan|Taipei|Kaohsiung
+    exclude-filter: ^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]|^(余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新|(?i)Network|Software|Westward
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    lazy: true
+
+  - name: "韩国节点"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Korea.png
+    type: url-test
+    include-all: true
+    filter: (?i)韩国|首尔|韓|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)|Korea|KOR
+    exclude-filter: ^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]|^(余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    lazy: true
+
+  # 没有 filter，只有 exclude：排掉全部已知地区 = 剩下的都是「其他国家」
+  # type 用 select 而非 url-test：订阅若无其它地区节点，
+  # url-test 组会吸入 0 个节点成为空组，内核求值时崩溃。
+  # select + proxies: [DIRECT] 保证组恒非空（最差走直连）。
+  - name: "其他国家"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/World_Map.png
+    type: select
+    proxies: [DIRECT]
+    include-all: true
+    exclude-filter: ^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]|^(余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新|(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|United.?States|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|香港|Hong.?Kong|HKG|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|日本|东京|大阪|川日|沪日|深日|泉日|埼玉|Japan|Tokyo|Osaka|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|新加坡|狮城|Singapore|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|台湾|台北|台中|新北|彰化|Taiwan|Taipei|Kaohsiung|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|韩国|首尔|韓|Korea|KOR|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)
+
+  # 非中国域名走代理
+  - name: "非中国"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Global.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+  # 未匹配到任何规则的流量
+  - name: "漏网之鱼"
+    icon: https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Final.png
+    type: select
+    proxies: [节点选择, 自动选择, 美国节点, 香港节点, 日本节点, 狮城节点, 台湾节点, 韩国节点, 其他国家, 手动切换, DIRECT, REJECT]
+
+# 全部规则集：MetaCubeX meta-rules-dat，.mrs 二进制，24 小时更新
+#
+# proxy 字段是相对原项目的第二处适配（必需项，不是可选优化）：
+# SubBoost 跑在转换机上，规则集由那台机器直连下载。
+# 落到 mihomo 后，如果本机直连 CDN 会被墙（实测 jsdelivr 直连
+# i/o timeout），全部规则集都会拉取失败且没有任何流量命中规则。
+# 指定 proxy 后由「节点选择」转发下载。
+# 若你的网络能直连 jsdelivr，把生成器的 RULE_PROXY 设为 None 即可。
+rule-providers:
+  category-games-cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/category-games@cn.mrs
+    path: ./ruleset/category-games-cn.mrs
+    interval: 86400
+    proxy: 节点选择
+  category-ads-all:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/category-ads-all.mrs
+    path: ./ruleset/category-ads-all.mrs
+    interval: 86400
+    proxy: 节点选择
+  private:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/private.mrs
+    path: ./ruleset/private.mrs
+    interval: 86400
+    proxy: 节点选择
+  private-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/private.mrs
+    path: ./ruleset/private-ip.mrs
+    interval: 86400
+    proxy: 节点选择
+  openai:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/openai.mrs
+    path: ./ruleset/openai.mrs
+    interval: 86400
+    proxy: 节点选择
+  anthropic:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/anthropic.mrs
+    path: ./ruleset/anthropic.mrs
+    interval: 86400
+    proxy: 节点选择
+  category-ai-chat-!cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/category-ai-chat-!cn.mrs
+    path: ./ruleset/category-ai-chat-!cn.mrs
+    interval: 86400
+    proxy: 节点选择
+  youtube:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/youtube.mrs
+    path: ./ruleset/youtube.mrs
+    interval: 86400
+    proxy: 节点选择
+  category-scholar-!cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/category-scholar-!cn.mrs
+    path: ./ruleset/category-scholar-!cn.mrs
+    interval: 86400
+    proxy: 节点选择
+  coursera:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/coursera.mrs
+    path: ./ruleset/coursera.mrs
+    interval: 86400
+    proxy: 节点选择
+  udemy:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/udemy.mrs
+    path: ./ruleset/udemy.mrs
+    interval: 86400
+    proxy: 节点选择
+  edx:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/edx.mrs
+    path: ./ruleset/edx.mrs
+    interval: 86400
+    proxy: 节点选择
+  khanacademy:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/khanacademy.mrs
+    path: ./ruleset/khanacademy.mrs
+    interval: 86400
+    proxy: 节点选择
+  wikimedia:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/wikimedia.mrs
+    path: ./ruleset/wikimedia.mrs
+    interval: 86400
+    proxy: 节点选择
+  google:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/google.mrs
+    path: ./ruleset/google.mrs
+    interval: 86400
+    proxy: 节点选择
+  google-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/google.mrs
+    path: ./ruleset/google-ip.mrs
+    interval: 86400
+    proxy: 节点选择
+  telegram:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/telegram.mrs
+    path: ./ruleset/telegram.mrs
+    interval: 86400
+    proxy: 节点选择
+  telegram-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/telegram.mrs
+    path: ./ruleset/telegram-ip.mrs
+    interval: 86400
+    proxy: 节点选择
+  github:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/github.mrs
+    path: ./ruleset/github.mrs
+    interval: 86400
+    proxy: 节点选择
+  gitlab:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/gitlab.mrs
+    path: ./ruleset/gitlab.mrs
+    interval: 86400
+    proxy: 节点选择
+  atlassian:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/atlassian.mrs
+    path: ./ruleset/atlassian.mrs
+    interval: 86400
+    proxy: 节点选择
+  microsoft:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/microsoft.mrs
+    path: ./ruleset/microsoft.mrs
+    interval: 86400
+    proxy: 节点选择
+  onedrive:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/onedrive.mrs
+    path: ./ruleset/onedrive.mrs
+    interval: 86400
+    proxy: 节点选择
+  apple:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/apple.mrs
+    path: ./ruleset/apple.mrs
+    interval: 86400
+    proxy: 节点选择
+  icloud:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/icloud.mrs
+    path: ./ruleset/icloud.mrs
+    interval: 86400
+    proxy: 节点选择
+  twitter:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/twitter.mrs
+    path: ./ruleset/twitter.mrs
+    interval: 86400
+    proxy: 节点选择
+  twitter-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/twitter.mrs
+    path: ./ruleset/twitter-ip.mrs
+    interval: 86400
+    proxy: 节点选择
+  facebook:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/facebook.mrs
+    path: ./ruleset/facebook.mrs
+    interval: 86400
+    proxy: 节点选择
+  instagram:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/instagram.mrs
+    path: ./ruleset/instagram.mrs
+    interval: 86400
+    proxy: 节点选择
+  whatsapp:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/whatsapp.mrs
+    path: ./ruleset/whatsapp.mrs
+    interval: 86400
+    proxy: 节点选择
+  facebook-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/facebook.mrs
+    path: ./ruleset/facebook-ip.mrs
+    interval: 86400
+    proxy: 节点选择
+  discord:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/discord.mrs
+    path: ./ruleset/discord.mrs
+    interval: 86400
+    proxy: 节点选择
+  tiktok:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/tiktok.mrs
+    path: ./ruleset/tiktok.mrs
+    interval: 86400
+    proxy: 节点选择
+  line:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/line.mrs
+    path: ./ruleset/line.mrs
+    interval: 86400
+    proxy: 节点选择
+  reddit:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/reddit.mrs
+    path: ./ruleset/reddit.mrs
+    interval: 86400
+    proxy: 节点选择
+  linkedin:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/linkedin.mrs
+    path: ./ruleset/linkedin.mrs
+    interval: 86400
+    proxy: 节点选择
+  snap:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/snap.mrs
+    path: ./ruleset/snap.mrs
+    interval: 86400
+    proxy: 节点选择
+  pinterest:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/pinterest.mrs
+    path: ./ruleset/pinterest.mrs
+    interval: 86400
+    proxy: 节点选择
+  tumblr:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/tumblr.mrs
+    path: ./ruleset/tumblr.mrs
+    interval: 86400
+    proxy: 节点选择
+  netflix:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/netflix.mrs
+    path: ./ruleset/netflix.mrs
+    interval: 86400
+    proxy: 节点选择
+  netflix-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/netflix.mrs
+    path: ./ruleset/netflix-ip.mrs
+    interval: 86400
+    proxy: 节点选择
+  disney:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/disney.mrs
+    path: ./ruleset/disney.mrs
+    interval: 86400
+    proxy: 节点选择
+  hbo:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/hbo.mrs
+    path: ./ruleset/hbo.mrs
+    interval: 86400
+    proxy: 节点选择
+  hulu:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/hulu.mrs
+    path: ./ruleset/hulu.mrs
+    interval: 86400
+    proxy: 节点选择
+  primevideo:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/primevideo.mrs
+    path: ./ruleset/primevideo.mrs
+    interval: 86400
+    proxy: 节点选择
+  apple-tvplus:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/apple-tvplus.mrs
+    path: ./ruleset/apple-tvplus.mrs
+    interval: 86400
+    proxy: 节点选择
+  spotify:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/spotify.mrs
+    path: ./ruleset/spotify.mrs
+    interval: 86400
+    proxy: 节点选择
+  twitch:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/twitch.mrs
+    path: ./ruleset/twitch.mrs
+    interval: 86400
+    proxy: 节点选择
+  dazn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/dazn.mrs
+    path: ./ruleset/dazn.mrs
+    interval: 86400
+    proxy: 节点选择
+  bahamut:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/bahamut.mrs
+    path: ./ruleset/bahamut.mrs
+    interval: 86400
+    proxy: 节点选择
+  biliintl:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/biliintl.mrs
+    path: ./ruleset/biliintl.mrs
+    interval: 86400
+    proxy: 节点选择
+  niconico:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/niconico.mrs
+    path: ./ruleset/niconico.mrs
+    interval: 86400
+    proxy: 节点选择
+  abema:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/abema.mrs
+    path: ./ruleset/abema.mrs
+    interval: 86400
+    proxy: 节点选择
+  viu:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/viu.mrs
+    path: ./ruleset/viu.mrs
+    interval: 86400
+    proxy: 节点选择
+  kktv:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/kktv.mrs
+    path: ./ruleset/kktv.mrs
+    interval: 86400
+    proxy: 节点选择
+  steam-cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/steam@cn.mrs
+    path: ./ruleset/steam-cn.mrs
+    interval: 86400
+    proxy: 节点选择
+  steam:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/steam.mrs
+    path: ./ruleset/steam.mrs
+    interval: 86400
+    proxy: 节点选择
+  epicgames:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/epicgames.mrs
+    path: ./ruleset/epicgames.mrs
+    interval: 86400
+    proxy: 节点选择
+  ea:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/ea.mrs
+    path: ./ruleset/ea.mrs
+    interval: 86400
+    proxy: 节点选择
+  ubisoft:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/ubisoft.mrs
+    path: ./ruleset/ubisoft.mrs
+    interval: 86400
+    proxy: 节点选择
+  blizzard:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/blizzard.mrs
+    path: ./ruleset/blizzard.mrs
+    interval: 86400
+    proxy: 节点选择
+  gog:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/gog.mrs
+    path: ./ruleset/gog.mrs
+    interval: 86400
+    proxy: 节点选择
+  riot:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/riot.mrs
+    path: ./ruleset/riot.mrs
+    interval: 86400
+    proxy: 节点选择
+  playstation:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/playstation.mrs
+    path: ./ruleset/playstation.mrs
+    interval: 86400
+    proxy: 节点选择
+  xbox:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/xbox.mrs
+    path: ./ruleset/xbox.mrs
+    interval: 86400
+    proxy: 节点选择
+  nintendo:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/nintendo.mrs
+    path: ./ruleset/nintendo.mrs
+    interval: 86400
+    proxy: 节点选择
+  docker:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/docker.mrs
+    path: ./ruleset/docker.mrs
+    interval: 86400
+    proxy: 节点选择
+  npmjs:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/npmjs.mrs
+    path: ./ruleset/npmjs.mrs
+    interval: 86400
+    proxy: 节点选择
+  jetbrains:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/jetbrains.mrs
+    path: ./ruleset/jetbrains.mrs
+    interval: 86400
+    proxy: 节点选择
+  stackexchange:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/stackexchange.mrs
+    path: ./ruleset/stackexchange.mrs
+    interval: 86400
+    proxy: 节点选择
+  dropbox:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/dropbox.mrs
+    path: ./ruleset/dropbox.mrs
+    interval: 86400
+    proxy: 节点选择
+  notion:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/notion.mrs
+    path: ./ruleset/notion.mrs
+    interval: 86400
+    proxy: 节点选择
+  paypal:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/paypal.mrs
+    path: ./ruleset/paypal.mrs
+    interval: 86400
+    proxy: 节点选择
+  stripe:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/stripe.mrs
+    path: ./ruleset/stripe.mrs
+    interval: 86400
+    proxy: 节点选择
+  wise:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/wise.mrs
+    path: ./ruleset/wise.mrs
+    interval: 86400
+    proxy: 节点选择
+  binance:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/binance.mrs
+    path: ./ruleset/binance.mrs
+    interval: 86400
+    proxy: 节点选择
+  bbc:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/bbc.mrs
+    path: ./ruleset/bbc.mrs
+    interval: 86400
+    proxy: 节点选择
+  cnn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/cnn.mrs
+    path: ./ruleset/cnn.mrs
+    interval: 86400
+    proxy: 节点选择
+  nytimes:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/nytimes.mrs
+    path: ./ruleset/nytimes.mrs
+    interval: 86400
+    proxy: 节点选择
+  wsj:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/wsj.mrs
+    path: ./ruleset/wsj.mrs
+    interval: 86400
+    proxy: 节点选择
+  bloomberg:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/bloomberg.mrs
+    path: ./ruleset/bloomberg.mrs
+    interval: 86400
+    proxy: 节点选择
+  amazon:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/amazon.mrs
+    path: ./ruleset/amazon.mrs
+    interval: 86400
+    proxy: 节点选择
+  ebay:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/ebay.mrs
+    path: ./ruleset/ebay.mrs
+    interval: 86400
+    proxy: 节点选择
+  aws:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/aws.mrs
+    path: ./ruleset/aws.mrs
+    interval: 86400
+    proxy: 节点选择
+  azure:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/azure.mrs
+    path: ./ruleset/azure.mrs
+    interval: 86400
+    proxy: 节点选择
+  cloudflare:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/cloudflare.mrs
+    path: ./ruleset/cloudflare.mrs
+    interval: 86400
+    proxy: 节点选择
+  digitalocean:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/digitalocean.mrs
+    path: ./ruleset/digitalocean.mrs
+    interval: 86400
+    proxy: 节点选择
+  vercel:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/vercel.mrs
+    path: ./ruleset/vercel.mrs
+    interval: 86400
+    proxy: 节点选择
+  netlify:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/netlify.mrs
+    path: ./ruleset/netlify.mrs
+    interval: 86400
+    proxy: 节点选择
+  cloudflare-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cloudflare.mrs
+    path: ./ruleset/cloudflare-ip.mrs
+    interval: 86400
+    proxy: 节点选择
+  geolocation-!cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/geolocation-!cn.mrs
+    path: ./ruleset/geolocation-!cn.mrs
+    interval: 86400
+    proxy: 节点选择
+  geolocation-cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/geolocation-cn.mrs
+    path: ./ruleset/geolocation-cn.mrs
+    interval: 86400
+    proxy: 节点选择
+  cn-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.mrs
+    path: ./ruleset/cn-ip.mrs
+    interval: 86400
+    proxy: 节点选择
+  cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/cn.mrs
+    path: ./ruleset/cn.mrs
+    interval: 86400
+    proxy: 节点选择
+
+# rules+（末尾 + 号）是 mihomo-party 覆写合并的「数组追加」语义：
+# 本段追加在已有规则之后，而不是整段替换。
+# 依赖「全局DNS统一覆写」JS 先把 config.rules 重置为 29 条工作内网规则，
+# 本段再接在它后面 —— 两边都写 rules 会互相整段覆盖。
+rules+:
+- RULE-SET,category-ads-all,广告拦截
+- RULE-SET,private,私有网络
+- RULE-SET,private-ip,私有网络,no-resolve
+- RULE-SET,openai,AI 服务
+- RULE-SET,anthropic,AI 服务
+- RULE-SET,category-ai-chat-!cn,AI 服务
+- RULE-SET,youtube,油管视频
+- RULE-SET,category-scholar-!cn,教育学术
+- RULE-SET,coursera,教育学术
+- RULE-SET,udemy,教育学术
+- RULE-SET,edx,教育学术
+- RULE-SET,khanacademy,教育学术
+- RULE-SET,wikimedia,教育学术
+- RULE-SET,google,谷歌服务
+- RULE-SET,google-ip,谷歌服务,no-resolve
+- RULE-SET,telegram,电报消息
+- RULE-SET,telegram-ip,电报消息,no-resolve
+- RULE-SET,github,代码托管
+- RULE-SET,gitlab,代码托管
+- RULE-SET,atlassian,代码托管
+- RULE-SET,microsoft,微软服务
+- RULE-SET,onedrive,微软服务
+- RULE-SET,apple,苹果服务
+- RULE-SET,icloud,苹果服务
+- RULE-SET,twitter,推特/X
+- RULE-SET,twitter-ip,推特/X,no-resolve
+- RULE-SET,facebook,Meta 系
+- RULE-SET,instagram,Meta 系
+- RULE-SET,whatsapp,Meta 系
+- RULE-SET,facebook-ip,Meta 系,no-resolve
+- RULE-SET,discord,Discord
+- RULE-SET,tiktok,其他社交
+- RULE-SET,line,其他社交
+- RULE-SET,reddit,其他社交
+- RULE-SET,linkedin,其他社交
+- RULE-SET,snap,其他社交
+- RULE-SET,pinterest,其他社交
+- RULE-SET,tumblr,其他社交
+- RULE-SET,netflix,奈飞
+- RULE-SET,netflix-ip,奈飞,no-resolve
+- RULE-SET,disney,迪士尼+
+- RULE-SET,hbo,欧美流媒体
+- RULE-SET,hulu,欧美流媒体
+- RULE-SET,primevideo,欧美流媒体
+- RULE-SET,apple-tvplus,欧美流媒体
+- RULE-SET,spotify,欧美流媒体
+- RULE-SET,twitch,欧美流媒体
+- RULE-SET,dazn,欧美流媒体
+- RULE-SET,bahamut,亚洲流媒体
+- RULE-SET,biliintl,亚洲流媒体
+- RULE-SET,niconico,亚洲流媒体
+- RULE-SET,abema,亚洲流媒体
+- RULE-SET,viu,亚洲流媒体
+- RULE-SET,kktv,亚洲流媒体
+# === 1. Steam 商店、社区及静态资源强制走代理（置于最前，防黑屏与加载失败） ===
+# ⚠ 必须排在 category-games-cn 之前。该规则集是全平台 @cn 统一集，
+#   覆盖面极大，若商店域名被它先捕获就会走直连，商店页加载失败。
+- DOMAIN-SUFFIX,store.steampowered.com,Steam
+- DOMAIN-SUFFIX,steamcommunity.com,Steam
+- DOMAIN-SUFFIX,steamstatic.com,Steam
+- DOMAIN,steamstore-a.akamaihd.net,Steam
+- DOMAIN,steamcommunity-a.akamaihd.net,Steam
+- DOMAIN,steamuserimages-a.akamaihd.net,Steam
+# === 2. 全平台游戏下载与 Steam 区服握手直连（保持 IPCountry = CN） ===
+- RULE-SET,category-games-cn,国内服务
+- DOMAIN-SUFFIX,cm.steampowered.com,国内服务
+- DOMAIN-SUFFIX,steamserver.net,国内服务
+- DOMAIN-SUFFIX,steamcontent.com,国内服务
+- RULE-SET,steam-cn,国内服务
+# === Epic Games 下载直连 ===
+- DOMAIN,epicgames-download1-1251447533.file.myqcloud.com,国内服务
+- DOMAIN,epicgames-download1.akamaized.net,国内服务
+- DOMAIN,fastly-download.epicgames.com,国内服务
+- DOMAIN-SUFFIX,download.epicgames.com,国内服务
+- DOMAIN-SUFFIX,download2.epicgames.com,国内服务
+- DOMAIN-SUFFIX,download3.epicgames.com,国内服务
+- DOMAIN-SUFFIX,download4.epicgames.com,国内服务
+# === 暴雪战网 (Battle.net) 下载直连 ===
+- DOMAIN,blzddist1-a.akamaihd.net,国内服务
+- DOMAIN,blzddistkr1-a.akamaihd.net,国内服务
+- DOMAIN,bnetproduct-a.akamaihd.net,国内服务
+- DOMAIN,blizzard.nefficient.co.kr,国内服务
+- DOMAIN-SUFFIX,cdn.blizzard.com,国内服务
+# === EA (Origin) 与 Ubisoft 下载直连 ===
+- DOMAIN,origin-a.akamaihd.net,国内服务
+- DOMAIN,ssl-lvlt.cdn.ea.com,国内服务
+- DOMAIN,uplaypc-s-ubisoft.cdn.ubi.com,国内服务
+# === 主机游戏与 XGP (Xbox/PS/Switch) 下载直连 ===
+- DOMAIN,assets1.xboxlive.com,国内服务
+- DOMAIN,assets2.xboxlive.com,国内服务
+- DOMAIN,xvcf1.xboxlive.com,国内服务
+- DOMAIN,xvcf2.xboxlive.com,国内服务
+- DOMAIN,dlassets.xboxlive.com,国内服务
+- DOMAIN-SUFFIX,dl.playstation.net,国内服务
+- DOMAIN,atum.hac.lp1.d4c.nintendo.net,国内服务
+# === 3. 其余 Steam 流量兜底走代理 ===
+- RULE-SET,steam,Steam
+- RULE-SET,epicgames,PC 游戏
+- RULE-SET,ea,PC 游戏
+- RULE-SET,ubisoft,PC 游戏
+- RULE-SET,blizzard,PC 游戏
+- RULE-SET,gog,PC 游戏
+- RULE-SET,riot,PC 游戏
+- RULE-SET,playstation,主机游戏
+- RULE-SET,xbox,主机游戏
+- RULE-SET,nintendo,主机游戏
+- RULE-SET,docker,开发工具
+- RULE-SET,npmjs,开发工具
+- RULE-SET,jetbrains,开发工具
+- RULE-SET,stackexchange,开发工具
+- RULE-SET,dropbox,网盘存储
+- RULE-SET,notion,网盘存储
+- RULE-SET,paypal,支付平台
+- RULE-SET,stripe,支付平台
+- RULE-SET,wise,支付平台
+- RULE-SET,binance,加密货币
+- RULE-SET,bbc,新闻资讯
+- RULE-SET,cnn,新闻资讯
+- RULE-SET,nytimes,新闻资讯
+- RULE-SET,wsj,新闻资讯
+- RULE-SET,bloomberg,新闻资讯
+- RULE-SET,amazon,海淘购物
+- RULE-SET,ebay,海淘购物
+- RULE-SET,aws,云服务
+- RULE-SET,azure,云服务
+- RULE-SET,cloudflare,云服务
+- RULE-SET,digitalocean,云服务
+- RULE-SET,vercel,云服务
+- RULE-SET,netlify,云服务
+- RULE-SET,cloudflare-ip,云服务,no-resolve
+- RULE-SET,geolocation-!cn,非中国
+- RULE-SET,geolocation-cn,国内服务
+- RULE-SET,cn-ip,国内服务,no-resolve
+- RULE-SET,cn,国内服务
+- MATCH,漏网之鱼
+
+# 校验：python test/_sb/verify.py
