@@ -50,9 +50,25 @@ if not MODULES_TS.exists():
 # 声明式规则模块配置文件 (config/rules_profile.json)
 RULES_PROFILE_JSON = REPO_ROOT / "config" / "rules_profile.json"
 
+# 本地私有工作配置文件 (config/private_work.json, 已被 gitignore 隔离)
+PRIVATE_WORK_JSON = REPO_ROOT / "config" / "private_work.json"
+
 # 默认生产覆写输出路径
 DEFAULT_OUTPUT_JS = REPO_ROOT / "override" / "customSubBoost.js"
+DEFAULT_EXAMPLE_JS = REPO_ROOT / "override" / "customSubBoost.example.js"
 DEFAULT_OUTPUT_YAML = REPO_ROOT / "override" / "customSubBoost.yaml"
+
+
+def load_private_work_config() -> dict | None:
+    """读取本地私有工作配置（若文件不存在则返回 None）。"""
+    if PRIVATE_WORK_JSON.exists():
+        try:
+            data = json.loads(PRIVATE_WORK_JSON.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except Exception as e:
+            print(f"[!] 读取本地私有配置 config/private_work.json 失败: {e}")
+    return None
 
 
 # ============================================================================
@@ -667,13 +683,37 @@ def build_yaml(groups: list[dict], providers: dict, pre_game: list[str], subboos
     return out.getvalue()
 
 
-def build_all_in_one_js(groups: list[dict], providers: dict, pre_game: list[str], subboost_rules: list[str]) -> str:
+def build_all_in_one_js(
+    groups: list[dict],
+    providers: dict,
+    pre_game: list[str],
+    subboost_rules: list[str],
+    work_config: dict = None,
+) -> str:
     """
     全合一 JS 渲染器：组装自包含、跨端通跑的 customSubBoost.js 覆写脚本。
     包含顶部用户配置块、节点过滤引擎、DNS治理、策略组注入与全量规则链。
+    支持自动将本地 private_work.json 真实配置打包注入顶部 CONFIG 对象。
     """
     out = io.StringIO()
     w = out.write
+
+    enable_work = True
+    injected_policy_lines = []
+    injected_domains_lines = []
+    injected_cidrs_lines = []
+    injected_processes_lines = []
+
+    if work_config and isinstance(work_config, dict):
+        enable_work = work_config.get("enableWorkRules", True)
+        for k, v in (work_config.get("workNameserverPolicy") or {}).items():
+            injected_policy_lines.append(f'    "{k}": "{v}",\n')
+        for d in (work_config.get("workDomains") or []):
+            injected_domains_lines.append(f'    "{d}",\n')
+        for c in (work_config.get("workIpCidrs") or []):
+            injected_cidrs_lines.append(f'    "{c}",\n')
+        for p in (work_config.get("workProcesses") or []):
+            injected_processes_lines.append(f'    "{p}",\n')
 
     w("/**\n")
     w(" * ==============================================================================\n")
@@ -712,28 +752,36 @@ def build_all_in_one_js(groups: list[dict], providers: dict, pre_game: list[str]
     w("  maxMultiplier: 1.0,               // 允许的最大节点倍率（<= 1.0 保留，> 1.0 剔除）\n\n")
 
     w("  // ── 3. 工作内网分流与直连开关 ──\n")
-    w("  enableWorkRules: true,            // 是否启用工作内网直连与专属分流\n\n")
+    w(f"  enableWorkRules: {'true' if enable_work else 'false'},            // 是否启用工作内网直连与专属分流\n\n")
 
     w("  // ── 4. 工作内网专属 DNS 策略 (nameserver-policy) ──\n")
     w("  // 格式: { \"域名通配\": \"DNS服务器IP或system\" }\n")
     w("  workNameserverPolicy: {\n")
     w("    // 示例: \"+.corp.internal\": \"10.0.0.53\",\n")
     w("    // 示例: \"+.office.internal\": \"system\",\n")
+    for line in injected_policy_lines:
+        w(line)
     w("  },\n\n")
 
     w("  // ── 5. 工作内网域名白名单 (直连 + 自动绕过 Fake-IP + 防污染过滤) ──\n")
     w("  workDomains: [\n")
     w("    // 示例: \"oa.company.com\", \"+.corp.internal\",\n")
+    for line in injected_domains_lines:
+        w(line)
     w("  ],\n\n")
 
     w("  // ── 6. 工作内网专属 IP / CIDR 网段直连 ──\n")
     w("  workIpCidrs: [\n")
     w("    // 示例: \"10.20.0.0/16\", \"172.16.50.0/24\",\n")
+    for line in injected_cidrs_lines:
+        w(line)
     w("  ],\n\n")
 
     w("  // ── 7. 工作内网专属进程直连 (桌面端生效，移动端自动忽略) ──\n")
     w("  workProcesses: [\n")
     w("    // 示例: \"corp-vpn.exe\", \"company-agent.exe\",\n")
+    for line in injected_processes_lines:
+        w(line)
     w("  ],\n")
     w("};\n\n")
 
@@ -1100,11 +1148,23 @@ def main() -> None:
 
     # 1. 构建与写出 JS 产物
     if not args.yaml_only:
-        js_text = build_all_in_one_js(groups, providers, pre_game, subboost_rules)
+        work_config = load_private_work_config()
+        if work_config:
+            print("[*] 检测到本地私有配置 config/private_work.json，正在自动打包注入 customSubBoost.js...")
+        else:
+            print("[*] 未检测到本地私有配置，使用纯净配置模板生成...")
+
+        # 生成本地直接开箱即用版（注入个人工作内网信息）
+        js_text = build_all_in_one_js(groups, providers, pre_game, subboost_rules, work_config=work_config)
         self_check_js(js_text)
         args.js_output.parent.mkdir(parents=True, exist_ok=True)
         args.js_output.write_text(js_text, encoding="utf-8")
         print(f"[✔] 全合一 JS 覆写生成成功: {args.js_output} (共 {len(js_text)} 字节, {js_text.count(chr(10))} 行)")
+
+        # 同步生成脱敏纯净示例模板（供 Git 追踪，永不包含个人敏感信息）
+        example_js_text = build_all_in_one_js(groups, providers, pre_game, subboost_rules, work_config=None)
+        DEFAULT_EXAMPLE_JS.write_text(example_js_text, encoding="utf-8")
+        print(f"[✔] 脱敏示例模板生成成功: {DEFAULT_EXAMPLE_JS} (共 {len(example_js_text)} 字节, 供 Git 追踪)")
 
     # 2. 构建与写出 YAML 产物
     if not args.js_only:
@@ -1119,3 +1179,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

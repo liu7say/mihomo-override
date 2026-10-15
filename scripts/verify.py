@@ -24,6 +24,8 @@ import yaml
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
 JS_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.js"
+if not JS_OVERRIDE.exists():
+    JS_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.example.js"
 YAML_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.yaml"
 if not YAML_OVERRIDE.exists():
     YAML_OVERRIDE = REPO_ROOT / "override" / "1b0sb00st01.yaml"

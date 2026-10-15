@@ -21,6 +21,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
 JS_PATH = REPO_ROOT / "override" / "customSubBoost.js"
+if not JS_PATH.exists():
+    JS_PATH = REPO_ROOT / "override" / "customSubBoost.example.js"
 
 
 def run_node_test(test_script: str) -> dict:

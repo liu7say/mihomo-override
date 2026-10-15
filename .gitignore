@@ -36,3 +36,6 @@ Thumbs.db
  
 # 私有工作内网敏感配置（绝不进版本库）
 config/private_work.json
+
+# 本地私有覆写产物（已自动打包真实内网配置，供本地客户端直接复制使用，禁止推送到远端）
+override/customSubBoost.js

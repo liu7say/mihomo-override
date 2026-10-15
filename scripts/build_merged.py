@@ -32,6 +32,8 @@ CORE_EXE = os.path.join(BASE, "test", "mihomo-test.exe")
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
 JS_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.js"
+if not JS_OVERRIDE.exists():
+    JS_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.example.js"
 YAML_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.yaml"
 
 

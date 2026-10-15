@@ -35,9 +35,9 @@
 │   ├── PROJECT.md                     ★ 项目权威技术文档（架构设计/合并机制/跨端适配/踩坑）
 │   └── PERFORMANCE.md                 ★ 规则与网络性能分析报告（冷启动/测速风暴/DNS链路）
 ├── override/
-│   ├── customSubBoost.js              ★【主力推荐】全合一跨端单文件 JS 覆写 (All-in-One)
-│   ├── customSubBoost.yaml            【备用双轨】纯 YAML 覆写 (适用于仅支持 YAML 的客户端)
-│   └── 节点清理（垃圾关键字...）.js   [旧版备份] 节点清洗旧脚本
+│   ├── customSubBoost.js              ★【本地自用】全合一单文件 JS 覆写 (自动打包内网配置，已被 gitignore 隔离)
+│   ├── customSubBoost.example.js      ★【公开模板】纯净脱敏版 JS 覆写 (供 Git 追踪与他人参考)
+│   └── customSubBoost.yaml            【备用双轨】纯 YAML 覆写 (适用于仅支持 YAML 的客户端)
 └── scripts/
     ├── gen_override.py                ★ 核心生成器：读取配置，自动化渲染 JS 与 YAML 双轨产物
     ├── test_js_override.py            ★ 自动化测试：Node.js 运行时 8 项核心断言沙箱套件
