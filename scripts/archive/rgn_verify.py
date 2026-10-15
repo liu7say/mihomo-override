@@ -14,11 +14,21 @@ from pathlib import Path
 
 import yaml
 
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
-OVERRIDE_YAML = REPO_ROOT / "override" / "customSubBoost.yaml"
+OVERRIDE_YAML = REPO_ROOT / "override" / "customSubBoost.full.yaml"
 if not OVERRIDE_YAML.exists():
-    OVERRIDE_YAML = REPO_ROOT / "override" / "1b0sb00st01.yaml"
+    for tier in ["standard", "minimal"]:
+        p = REPO_ROOT / "override" / f"customSubBoost.{tier}.yaml"
+        if p.exists():
+            OVERRIDE_YAML = p
+            break
 
 
 # 配置根目录：优先环境变量 MIHOMO_PARTY_BASE，缺省从用户环境动态推导

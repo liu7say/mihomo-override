@@ -9,7 +9,7 @@
  * 
  * ⚠ 落地适配注意：
  * 原版 SubBoost 使用的是 raw.githubusercontent.com 直连地址；
- * 在大陆网络环境下，本覆写项目通过生成器将其全部无缝重定向至 testingcf.jsdelivr.net CDN 镜像。
+ * 在大陆网络环境下，本覆写项目通过生成器将其全部无缝重定向至 fastly.jsdelivr.net 高可用 CDN 镜像。
  */
 
 export const RULE_PROVIDER_CONFIG = {

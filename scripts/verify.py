@@ -21,14 +21,14 @@ from pathlib import Path
 
 import yaml
 
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
-JS_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.js"
-if not JS_OVERRIDE.exists():
-    JS_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.example.js"
-YAML_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.yaml"
-if not YAML_OVERRIDE.exists():
-    YAML_OVERRIDE = REPO_ROOT / "override" / "1b0sb00st01.yaml"
 
 # 配置根目录：优先环境变量 MIHOMO_PARTY_BASE，缺省从用户环境动态推导
 ROOT = Path(os.environ.get("MIHOMO_PARTY_BASE") or (Path.home() / "AppData" / "Roaming" / "mihomo-party"))
@@ -36,12 +36,53 @@ CORE_EXE = ROOT / "test" / "mihomo-test.exe"
 SB = ROOT / "test" / "_sb"
 OUT = SB / "verify"
 
-SUBS = {
+# 常用机场订阅别名表（供日志友好显示）
+SUBS_ALIAS = {
     "19f26ab99a3": "奈云",
     "19db57e02f7": "自建/备用",
     "1a0377776c2": "TAGMeta",
     "19e91d0a1b7": "Glados",
 }
+
+
+def discover_profiles() -> dict[str, tuple[str, dict]]:
+    """
+    动态扫描 profiles 目录下的所有订阅底稿。
+    若无本地订阅，则自动回退至内建标准 Mock 订阅底稿。
+    返回: {pid: (display_name, profile_data)}
+    """
+    profiles = {}
+    profiles_dir = ROOT / "profiles"
+    if profiles_dir.exists():
+        for p in sorted(profiles_dir.glob("*.yaml")):
+            try:
+                data = yaml.safe_load(p.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and "proxies" in data:
+                    pid = p.stem
+                    name = SUBS_ALIAS.get(pid, pid[:8])
+                    profiles[pid] = (name, data)
+            except Exception:
+                pass
+
+    if not profiles:
+        # 内建标准 Mock 订阅底稿 (跨平台零外部依赖)
+        mock_data = {
+            "proxies": [
+                {"name": "🇺🇸 美国 01", "type": "ss", "server": "1.1.1.1", "port": 443, "cipher": "aes-128-gcm", "password": "pass"},
+                {"name": "🇭🇰 香港 02 | 1x", "type": "ss", "server": "1.1.1.2", "port": 443, "cipher": "aes-128-gcm", "password": "pass"},
+                {"name": "🇯🇵 日本 IEPL-X2", "type": "ss", "server": "1.1.1.3", "port": 443, "cipher": "aes-128-gcm", "password": "pass"},
+                {"name": "🇸🇬 狮城 04 [2x]", "type": "ss", "server": "1.1.1.4", "port": 443, "cipher": "aes-128-gcm", "password": "pass"},
+                {"name": "🇹🇼 台湾 05", "type": "ss", "server": "1.1.1.5", "port": 443, "cipher": "aes-128-gcm", "password": "pass"},
+                {"name": "🇰🇷 韩国 06", "type": "ss", "server": "1.1.1.6", "port": 443, "cipher": "aes-128-gcm", "password": "pass"},
+                {"name": "剩余流量: 500GB", "type": "ss", "server": "1.1.1.7", "port": 443, "cipher": "aes-128-gcm", "password": "pass"},
+            ],
+            "proxy-groups": [],
+            "rules": ["DOMAIN-SUFFIX,mock-sub.com,DIRECT"],
+            "dns": {"enable": True, "nameserver": ["223.5.5.5"]},
+        }
+        profiles["mock-env"] = ("内建标准Mock", mock_data)
+
+    return profiles
 
 
 def deep_merge(base: dict, patch: dict) -> dict:
@@ -71,9 +112,9 @@ def deep_merge(base: dict, patch: dict) -> dict:
     return out
 
 
-def run_js_override(profile_data: dict) -> dict:
-    """通过 Node.js 标准输入管道执行 customSubBoost.js 的 main(config)。"""
-    js_rel = os.path.relpath(JS_OVERRIDE, REPO_ROOT).replace("\\", "/")
+def run_js_override(js_path: Path, profile_data: dict) -> dict:
+    """通过 Node.js 标准输入管道执行指定 JS 覆写的 main(config)。"""
+    js_rel = os.path.relpath(js_path, REPO_ROOT).replace("\\", "/")
     driver = f"""
     const fs = require('fs');
     const {{ main }} = require('./{js_rel}');
@@ -90,7 +131,7 @@ def run_js_override(profile_data: dict) -> dict:
         cwd=str(REPO_ROOT),
     )
     if proc.returncode != 0:
-        raise RuntimeError(f"Node.js 执行 customSubBoost.js 失败:\n{proc.stderr}")
+        raise RuntimeError(f"Node.js 执行 {js_path.name} 失败:\n{proc.stderr}")
     return json.loads(proc.stdout)
 
 
@@ -144,33 +185,28 @@ def load_front_rules() -> list[str]:
     ]
 
 
-def main() -> int:
-    print("=" * 60)
-    print("Mihomo 订阅与覆写内核合法性全量验证")
-    print("=" * 60)
+def verify_tier(tier: str, discovered: dict[str, tuple[str, dict]]) -> list[tuple[str, str]]:
+    """针对单个预设档位，执行 JS 与 YAML 双轨真实订阅测试。"""
+    print(f"\n>>> 正在验证档位: [{tier.upper()}] <<<")
+    js_override = REPO_ROOT / "override" / f"customSubBoost.{tier}.js"
+    if not js_override.exists():
+        js_override = REPO_ROOT / "override" / f"customSubBoost.{tier}.example.js"
+    yaml_override = REPO_ROOT / "override" / f"customSubBoost.{tier}.yaml"
 
     failures = []
 
-    # -------------------------------------------------------------
-    # 阶段 1: 验证全合一 JS 覆写 (customSubBoost.js - 新架构主力)
-    # -------------------------------------------------------------
-    if JS_OVERRIDE.exists():
-        print("\n[模式 A] 验证 All-in-One JS 覆写 (customSubBoost.js - 推荐)...")
-        for pid, name in SUBS.items():
-            profile_path = ROOT / "profiles" / f"{pid}.yaml"
-            if not profile_path.exists():
-                print(f"  [-] 订阅底稿不存在，跳过: {pid} ({name})")
-                continue
-
-            raw = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+    # 模式 A: All-in-One JS
+    if js_override.exists():
+        print(f"  [模式 A] JS 覆写 ({js_override.name})...")
+        for pid, (name, raw) in discovered.items():
             try:
-                merged_js = run_js_override(raw)
+                merged_js = run_js_override(js_override, raw)
             except Exception as e:
-                print(f"  [FAIL] {pid} ({name}): JS 执行异常: {e}")
-                failures.append((f"{pid}-JS", str(e)))
+                print(f"    [FAIL] {pid} ({name}): JS 执行异常: {e}")
+                failures.append((f"{tier.upper()}-{pid}-JS", str(e)))
                 continue
 
-            workdir = OUT / f"{pid}_js"
+            workdir = OUT / f"{tier}_{pid}_js"
             ok, log = test_kernel_config(workdir, merged_js, pid)
             raw_nodes = len(raw.get("proxies") or [])
             cleaned_nodes = len(merged_js.get("proxies") or [])
@@ -178,48 +214,68 @@ def main() -> int:
             rules = len(merged_js.get("rules") or [])
 
             status = "PASS" if ok else "FAIL"
-            print(f"  [{status}] {pid} ({name:<6})  原始节点{raw_nodes:>3} -> 清洗后{cleaned_nodes:>3}  组{groups}  规则{rules}")
+            print(f"    [{status}] {pid} ({name:<8})  原始节点{raw_nodes:>3} -> 清洗后{cleaned_nodes:>3}  组{groups:>2}  规则{rules:>3}")
             if not ok:
-                failures.append((f"{pid}-JS", log))
+                failures.append((f"{tier.upper()}-{pid}-JS", log))
 
-    # -------------------------------------------------------------
-    # 阶段 2: 验证双轨 YAML 覆写 (customSubBoost.yaml - 旧版流水线备用)
-    # -------------------------------------------------------------
-    if YAML_OVERRIDE.exists():
-        print("\n[模式 B] 验证双轨 YAML 覆写 (customSubBoost.yaml - 兼容备用)...")
-        override_yaml_data = yaml.safe_load(YAML_OVERRIDE.read_text(encoding="utf-8"))
+    # 模式 B: 双轨 YAML
+    if yaml_override.exists():
+        print(f"  [模式 B] YAML 覆写 ({yaml_override.name})...")
+        override_yaml_data = yaml.safe_load(yaml_override.read_text(encoding="utf-8"))
         front_rules = load_front_rules()
 
-        for pid, name in SUBS.items():
-            profile_path = ROOT / "profiles" / f"{pid}.yaml"
-            if not profile_path.exists():
-                continue
+        for pid, (name, raw) in discovered.items():
+            base_data = dict(raw)
+            base_data["rules"] = list(front_rules)
+            merged_yaml = deep_merge(base_data, override_yaml_data)
 
-            raw = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
-            # 遵循 Clash Party 旧版流水线：前置覆写初始化规则，后续 rules+: 追加
-            raw["rules"] = list(front_rules)
-            merged_yaml = deep_merge(raw, override_yaml_data)
-
-            workdir = OUT / f"{pid}_yaml"
+            workdir = OUT / f"{tier}_{pid}_yaml"
             ok, log = test_kernel_config(workdir, merged_yaml, pid)
             groups = len(merged_yaml.get("proxy-groups") or [])
             rules = len(merged_yaml.get("rules") or [])
 
             status = "PASS" if ok else "FAIL"
-            print(f"  [{status}] {pid} ({name:<6})  节点{len(raw.get('proxies') or []):>3}  组{groups}  规则{rules}")
+            print(f"    [{status}] {pid} ({name:<8})  节点{len(raw.get('proxies') or []):>3}  组{groups:>2}  规则{rules:>3}")
             if not ok:
-                failures.append((f"{pid}-YAML", log))
+                failures.append((f"{tier.upper()}-{pid}-YAML", log))
 
-    if failures:
+    return failures
+
+
+def main() -> int:
+    # 支持命令行参数指定单一档位或 all (默认 all)
+    raw_arg = sys.argv[1].lower().lstrip("-") if len(sys.argv) > 1 else "all"
+    if raw_arg in ("min", "minimal"):
+        tiers = ["minimal"]
+    elif raw_arg in ("std", "standard"):
+        tiers = ["standard"]
+    elif raw_arg in ("full", "max"):
+        tiers = ["full"]
+    else:
+        tiers = ["minimal", "standard", "full"]
+
+    print("=" * 60)
+    print(f"Mihomo 订阅与覆写内核合法性全量验证 (目标档位: {', '.join(t.upper() for t in tiers)})")
+    print("=" * 60)
+
+    discovered = discover_profiles()
+    print(f"[*] 发现待校验订阅底稿 {len(discovered)} 个: {[f'{pid} ({name})' for pid, (name, _) in discovered.items()]}")
+
+    all_failures = []
+    for tier in tiers:
+        fails = verify_tier(tier, discovered)
+        all_failures.extend(fails)
+
+    if all_failures:
         print("\n" + "!" * 50)
         print("===== 失败详情 =====")
-        for target, blob in failures:
+        for target, blob in all_failures:
             print(f"\n--- {target} ---")
             print(blob[-3000:])
         return 1
 
     print("\n" + "=" * 60)
-    print("✔ 所有真实订阅在 JS 与 YAML 覆写模式下全部通过内核语法校验！")
+    print(f"✔ 全部 {len(tiers)} 个预设档位在 JS 与 YAML 覆写模式下 100% 通过验证！")
     print("=" * 60)
     return 0
 

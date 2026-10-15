@@ -19,6 +19,12 @@ from pathlib import Path
 
 import yaml
 
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
 # 配置根目录：优先读取环境变量 MIHOMO_PARTY_BASE，缺省从用户环境动态推导
 BASE = os.environ.get("MIHOMO_PARTY_BASE") or os.path.join(
     os.environ.get("APPDATA", os.path.expanduser("~")), "mihomo-party"
@@ -31,10 +37,10 @@ CORE_EXE = os.path.join(BASE, "test", "mihomo-test.exe")
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
-JS_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.js"
+JS_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.full.js"
 if not JS_OVERRIDE.exists():
-    JS_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.example.js"
-YAML_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.yaml"
+    JS_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.full.example.js"
+YAML_OVERRIDE = REPO_ROOT / "override" / "customSubBoost.full.yaml"
 
 
 def load_profile():

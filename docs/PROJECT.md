@@ -14,21 +14,21 @@
 - **V1 阶段（旧架构）**：
   - 分立为三个覆写：`1a128f773c5.js`（DNS与前置直连）、`1a128e0523d.js`（节点清洗）、`1b0sb00st01.yaml`（SubBoost分流）。
   - **致命缺陷**：极度依赖客户端特定的全局执行顺序（必须 JS 先清空/初始化 rules，YAML 再通过 `rules+:` 追加）。若顺序颠倒或客户端不支持多覆写有序编排，YAML 规则直接被清空，或订阅自带的数千条规则引发 `proxy not found` 崩溃。同时，工作内网信息硬编码在脚本中，有 Git 泄密风险。
-- **V2 阶段（当前新架构）**：
-  - **All-in-One 单脚本彻底闭环**：通过 `scripts/gen_override.py` 自动化编译渲染唯一的 `override/customSubBoost.js`。
-  - **职责一体化流水线**：单脚本内部完成「Fake-IP 与独立 Nameserver 注入 → 垃圾与高倍率节点清洗与级联引用维护 → 41 策略组与 94 规则集装配 → 132 条拓扑保序规则链生成」。
+- **V2 / V3 阶段（当前现代架构）**：
+  - **三档独立预设并行输出**：由 `scripts/gen_override.py` 自动化并行编译 `minimal` (16组)、`standard` (23组)、`full` (41组) 三套完全独立的 JS 与 YAML 覆写。
+  - **职责一体化流水线**：单脚本内部完成「Fake-IP 与独立 Nameserver 注入 → 垃圾与高倍率节点清洗与级联引用维护 → 策略组与规则集装配 → 拓扑保序与引用完整性保障」。
   - **敏感配置安全物理隔离**：个人工作内网信息存放于 `config/private_work.json`（已加入 `.gitignore`），代码库仅公开脱敏模板 `config/private_work.example.json`。
-  - **双轨后备保障**：同步输出 `override/customSubBoost.yaml`，供纯 YAML 客户端备用。
+  - **双轨后备保障**：同步输出 `override/customSubBoost.{minimal,standard,full}.yaml`，供纯 YAML 客户端备用。
 
 ### 1.2 运行时核心指标
 
-| 评估维度 | 规模指标 | 架构处理与保障机制 |
-|---|---|---|
-| **策略组总数 (proxy-groups)** | 41 个 | 节点选择、自动选择、手动切换、6 大核心地区、1 个其他国家、31 个业务策略组 |
-| **规则条目 (rules)** | 132 条 | 拓扑保序：私有内网/局域网 -> 工作专有直连 -> 游戏优化 -> 36 业务分流 -> MATCH 兜底 |
-| **规则提供者 (rule-providers)** | 94 个 HTTP MRS | 全部配置 `proxy: 节点选择`，彻底消除直连 jsdelivr 的 429 与 SSL EOF 风险 |
-| **节点清洗效率** | 削减 50% ~ 70% | 自动识别并过滤流量提示/官网广告节点，剔除 >1.5x 的高倍率节点，并保留 1x 与 IEPL 专线 |
-| **内核冷启动测试耗时** | 26ms ~ 35ms | 本地 `mihomo-test.exe -t` 实测，毫秒级通过语法与分流解析 |
+| 评估维度 | Minimal (极简版) | Standard (标准版) | Full (全量版) | 架构处理与保障机制 |
+|---|:---:|:---:|:---:|---|
+| **策略组总数 (proxy-groups)** | 16 个 | 23 个 | 41 个 | 节点选择、自动选择、手动切换、6 大核心地区、1 个其他国家与业务策略组 |
+| **规则集提供者 (rule-providers)** | 12 个 | 24 个 | 94 个 | 默认 `DIRECT` + `fastly.jsdelivr.net` 高可用 CDN，彻底消除冷启动死锁与 EOF 风险 |
+| **规则条目 (rules)** | 55 条 | 67 条 | 137 条 | 拓扑保序：私有内网/局域网 -> 工作专有直连 -> 游戏优化 -> 业务分流 -> MATCH 兜底 |
+| **节点清洗效率** | 削减 50% ~ 70% | 削减 50% ~ 70% | 削减 50% ~ 70% | 自动过滤流量提示/官网广告节点，剔除 >1.0x 的高倍率节点，并保留 1x 与 IEPL 专线 |
+| **内核冷启动测试耗时** | ~15ms | ~22ms | ~35ms | 本地 `mihomo-test.exe -t` 实测，毫秒级通过语法与分流解析 |
 
 ---
 
@@ -134,19 +134,21 @@ graph TD
                                          ▼                                           ▼
                             [build_all_in_one_js()]                     [build_yaml()]
                                          ▼                                           ▼
-                           override/customSubBoost.js                  override/customSubBoost.yaml
+                           override/customSubBoost.{tier}.js          override/customSubBoost.{tier}.yaml
 ```
 
-### 5.2 质量门禁三件套 (CI Verification Pipeline)
+### 5.2 自动化质量门禁 (CI Verification Pipeline)
 
-在任何代码修改后，必须按顺序执行以下三套验证，全部通过方可交付：
+在任何代码修改后，必须执行以下自动化核查体系，全部通过方可交付：
 
-1. **Node.js 运行时测试 (`scripts/test_js_override.py`)**：
-   - 在真实 Node.js 沙箱中调用 `customSubBoost.js` 的 `main(config)`。
-   - 验证 8 项断言：垃圾节点过滤、高倍率排除、IEPL 专线保留、41 策略组注入、94 规则集注入、DNS Fake-IP 注入、拓扑保序、空配置防御。
+1. **Node.js 运行时全量断言 (`scripts/test_js_override.py`)**：
+   - 在真实 Node.js 沙箱中调用 3 大预设档位的 `main(config)`。
+   - 验证 10 项核心断言（3 档 × 10 = 30 项测试）：垃圾节点过滤、高倍率排除、IEPL 专线保留、策略组数量、规则集数量、级联死链清理、DNS Fake-IP 注入、拓扑保序、空配置防御、**外键规则引用完整性断言**。
 2. **策略组有向图拓扑分析 (`scripts/nest_check.py`)**：
-   - 采用 DFS 三色标记法对策略组引用进行环检测与深度遍历。
-   - 确保 **0 闭环**，且最大嵌套深度 **<= 1**（远低于客户端卡顿阈值 3）。
-3. **四大真实订阅多维内核实测 (`scripts/verify.py`)**：
-   - 遍历本地四个真实机场订阅（包含自建、中转与专线节点，节点规模高达 226+）。
-   - 将生成的配置写入测试沙箱，调用本地真实 `mihomo-test.exe -t` 内核，确认 0 错误、0 警告。
+   - 采用 DFS 三色标记法对 3 大档位策略组有向图进行环检测与深度遍历。
+   - 确保 **0 闭环**，且全局最大嵌套深度严格 **<= 1**（远低于客户端卡顿阈值 3）。
+3. **真实多订阅内核合法性验证 (`scripts/verify.py`)**：
+   - 自动扫描本地真实机场订阅底稿（`profiles/`），无本地订阅时自动注入内建标准 Mock 节点兜底。
+   - 分别在 JS 与 YAML 双模式下拼装沙箱，调用本地真实 `mihomo-test.exe -t` 内核，确认 0 错误、0 警告。
+4. **图标与规则集资源探测 (`scripts/check_icons.py`, `scripts/check_urls.py`)**：
+   - 确保 Qure 图标 100% 存在且命中，94 个 MRS 规则集在 CDN 上连通可用。

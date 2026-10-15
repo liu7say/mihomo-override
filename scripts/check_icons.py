@@ -6,7 +6,15 @@
 
 import json
 import re
+import sys
 from pathlib import Path
+
+# 确保在 Windows 控制台环境下输出 UTF-8
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
 
 # 项目根目录与 reference 目录推导
 HERE = Path(__file__).resolve().parent

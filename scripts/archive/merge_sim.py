@@ -32,6 +32,13 @@ BASE = os.environ.get("MIHOMO_PARTY_BASE") or os.path.join(
 
 
 
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
+
 def load_override_yaml_list():
     """模拟订阅自带的原始规则（这里只需一个非空占位）。"""
     return ["GEOSITE,category-ads-all,广告拦截", "MATCH,DIRECT"]
@@ -57,17 +64,17 @@ def deep_merge_arrays(target_rules, patch_rules, key):
 
 
 def main():
-    # 优先使用配置根下的覆写，若不存在则回退至本仓库产物 (优先 customSubBoost.yaml)
+    # 优先使用配置根下的覆写，若不存在则回退至本仓库产物 (优先 customSubBoost.full.yaml)
     repo_override = os.path.join(os.path.dirname(__file__), "..", "override")
     yml_candidates = [
-        os.path.join(BASE, "override", "customSubBoost.yaml"),
-        os.path.join(BASE, "override", "1b0sb00st01.yaml"),
-        os.path.join(repo_override, "customSubBoost.yaml"),
-        os.path.join(repo_override, "1b0sb00st01.yaml"),
+        os.path.join(BASE, "override", "customSubBoost.full.yaml"),
+        os.path.join(repo_override, "customSubBoost.full.yaml"),
+        os.path.join(repo_override, "customSubBoost.standard.yaml"),
+        os.path.join(repo_override, "customSubBoost.minimal.yaml"),
     ]
     yml_path = next((p for p in yml_candidates if os.path.exists(p)), None)
     if not yml_path:
-        raise SystemExit("找不到 YAML 覆写文件 (customSubBoost.yaml / 1b0sb00st01.yaml)")
+        raise SystemExit("找不到 YAML 覆写文件 (customSubBoost.*.yaml)")
     yml = open(yml_path, encoding="utf-8").read()
 
     js_path = os.path.join(BASE, "override", "1a128f773c5.js")

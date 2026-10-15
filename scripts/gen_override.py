@@ -7,12 +7,12 @@ SubBoost 规则体系 · 全合一跨端覆写配置生成器 (工业级重构�
 从 SubBoost 规则定义与本地配置中，自动化构建生成适用于 Clash Party、Flclash、
 bettbox 等 Mihomo (Clash.Meta) 内核客户端的覆写产物。
 
-【产物双轨输出】
-1. override/customSubBoost.js (主力推荐 · All-in-One 全合一覆写):
-   - 彻底整合 DNS 统一治理 + 节点清洗引擎 + SubBoost 41 策略组与 94 规则集
+【产物多档位输出 (Minimal / Standard / Full)】
+1. override/customSubBoost.{minimal,standard,full}.js (主力推荐 · All-in-One 全合一覆写):
+   - 彻底整合 DNS 统一治理 + 节点清洗引擎 + 策略组与规则集按场景分流
    - 文件顶部提供声明式 CONFIG 对象，在 JS 运行时动态控制工作地址与节点清洗开关
    - 纯标准 ECMAScript 语法，零外部依赖，跨平台通跑 (桌面与 Android/iOS 移动端)
-2. override/customSubBoost.yaml (双轨备用 · 纯 YAML 覆写):
+2. override/customSubBoost.{minimal,standard,full}.yaml (双轨备用 · 纯 YAML 覆写):
    - 遵循 rules+: 追加语义，供偏好传统多覆写模式的用户使用
 
 【设计哲学与铁律】
@@ -20,6 +20,8 @@ bettbox 等 Mihomo (Clash.Meta) 内核客户端的覆写产物。
 - Never break userspace: 全量防御性空安全检查；向后兼容 7 大地区组与游戏直连区块。
 - 无注释即垃圾代码: 每一段正则、每一个策略组决策均配有详尽中文注释。
 """
+
+from __future__ import annotations
 
 import argparse
 import io
@@ -29,6 +31,13 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+# 确保在 Windows 控制台环境下输出 UTF-8，防止 GBK 编码下 Unicode 符号崩溃
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 # ============================================================================
 # 第一部分：路径常量定义与环境适配
@@ -53,10 +62,30 @@ RULES_PROFILE_JSON = REPO_ROOT / "config" / "rules_profile.json"
 # 本地私有工作配置文件 (config/private_work.json, 已被 gitignore 隔离)
 PRIVATE_WORK_JSON = REPO_ROOT / "config" / "private_work.json"
 
-# 默认生产覆写输出路径
-DEFAULT_OUTPUT_JS = REPO_ROOT / "override" / "customSubBoost.js"
-DEFAULT_EXAMPLE_JS = REPO_ROOT / "override" / "customSubBoost.example.js"
-DEFAULT_OUTPUT_YAML = REPO_ROOT / "override" / "customSubBoost.yaml"
+# 覆写产物输出目录
+OVERRIDE_DIR = REPO_ROOT / "override"
+
+# 三大预设档位定义
+PRESETS = {
+    "minimal": {
+        "name": "极简版 (~15 组)",
+        "modules": {
+            "select", "auto", "ad", "private", "cn", "global", "final", "__regions__",
+            "ai",
+        },
+    },
+    "standard": {
+        "name": "标准版 (~22 组)",
+        "modules": {
+            "select", "auto", "ad", "private", "cn", "global", "final", "__regions__",
+            "ai", "youtube", "google", "microsoft", "apple", "telegram", "twitter", "steam",
+        },
+    },
+    "full": {
+        "name": "全量版 (41 组)",
+        "modules": None,  # None 代表从 rules_profile.json 加载全部启用模块 (26 业务组)
+    },
+}
 
 
 def load_private_work_config() -> dict | None:
@@ -125,11 +154,12 @@ DEFAULT_TEST_INTERVAL = 600      # 10 分钟一次，减少 50% 测速握手包
 DEFAULT_TEST_TOLERANCE = 50      # 50ms 切换容差阈值，消灭乒乓切换
 DEFAULT_TEST_LAZY = True         # 懒测速：无流量流经该组时不触发探测
 
-# 规则集基础 CDN 地址
-BASE_URL = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo"
+# 规则集基础 CDN 地址与预设映射 (fastly 国内直连高可用，无 TLS 重协商断流)
+DEFAULT_CDN_HOST = "fastly.jsdelivr.net"
+BASE_URL = f"https://{DEFAULT_CDN_HOST}/gh/MetaCubeX/meta-rules-dat@meta/geo"
 
 # Qure 图标集 CDN 根路径 (Koolson/Qure)
-ICON_BASE = "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color"
+ICON_BASE = f"https://{DEFAULT_CDN_HOST}/gh/Koolson/Qure@master/IconSet/Color"
 
 # 38 个策略组与 Qure 图标映射表
 ICONS = {
@@ -435,7 +465,13 @@ def load_rules_profile() -> tuple[set[str], dict]:
 # 第六部分：核心数据结构提取 (Good Taste: Data First)
 # ============================================================================
 
-def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
+def build_data_models(
+    modules: dict,
+    enabled_set: set[str],
+    test_opts: dict,
+    provider_proxy: str = "DIRECT",
+    cdn_host: str = DEFAULT_CDN_HOST,
+):
     """
     统一提炼三大核心数据模型，供给 YAML 和 JS 双端渲染引擎共用：
     1. proxy_groups_list: 41 个策略组列表
@@ -447,6 +483,9 @@ def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
     auto_name = name["auto"]
     manual_name = "手动切换"
 
+    base_url = f"https://{cdn_host}/gh/MetaCubeX/meta-rules-dat@meta/geo"
+    icon_base = f"https://{cdn_host}/gh/Koolson/Qure@master/IconSet/Color"
+
     # 1. 策略组列表构建
     region_names = [r["name"] for r in REGION_GROUPS]
     groups = []
@@ -457,7 +496,7 @@ def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
                 junk = JUNK if not r["exclude"] else f"{JUNK}|{r['exclude']}"
                 groups.append({
                     "name": r["name"],
-                    "icon": f"{ICON_BASE}/{r['icon']}.png",
+                    "icon": f"{icon_base}/{r['icon']}.png",
                     "type": "url-test",
                     "include-all": True,
                     "filter": r["filter"],
@@ -470,7 +509,7 @@ def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
             o = OTHER_REGION
             groups.append({
                 "name": o["name"],
-                "icon": f"{ICON_BASE}/{o['icon']}.png",
+                "icon": f"{icon_base}/{o['icon']}.png",
                 "type": "select",
                 "proxies": ["DIRECT"],
                 "include-all": True,
@@ -488,7 +527,7 @@ def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
         if gtype == "url-test":
             groups.append({
                 "name": gname,
-                "icon": f"{ICON_BASE}/{ICONS[mid]}.png",
+                "icon": f"{icon_base}/{ICONS[mid]}.png",
                 "type": "url-test",
                 "include-all": True,
                 "exclude-filter": INFO_NODE_RE,
@@ -500,7 +539,7 @@ def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
             if mid == "auto":
                 groups.append({
                     "name": manual_name,
-                    "icon": f"{ICON_BASE}/Available_1.png",
+                    "icon": f"{icon_base}/Available_1.png",
                     "type": "select",
                     "include-all": True,
                     "exclude-filter": INFO_NODE_RE,
@@ -508,28 +547,28 @@ def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
         elif gtype == "reject-first":
             groups.append({
                 "name": gname,
-                "icon": f"{ICON_BASE}/{ICONS[mid]}.png",
+                "icon": f"{icon_base}/{ICONS[mid]}.png",
                 "type": "select",
                 "proxies": ["REJECT", "DIRECT", select_name, manual_name],
             })
         elif gtype == "direct-first":
             groups.append({
                 "name": gname,
-                "icon": f"{ICON_BASE}/{ICONS[mid]}.png",
+                "icon": f"{icon_base}/{ICONS[mid]}.png",
                 "type": "select",
                 "proxies": ["DIRECT", "REJECT", select_name, auto_name, manual_name],
             })
         elif mid == "select":
             groups.append({
                 "name": gname,
-                "icon": f"{ICON_BASE}/{ICONS[mid]}.png",
+                "icon": f"{icon_base}/{ICONS[mid]}.png",
                 "type": "select",
                 "proxies": [auto_name] + region_names + [manual_name, "DIRECT", "REJECT"],
             })
         else:
             groups.append({
                 "name": gname,
-                "icon": f"{ICON_BASE}/{ICONS[mid]}.png",
+                "icon": f"{icon_base}/{ICONS[mid]}.png",
                 "type": "select",
                 "proxies": [select_name, auto_name] + region_names + [manual_name, "DIRECT", "REJECT"],
             })
@@ -544,10 +583,10 @@ def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
                 "type": "http",
                 "behavior": r["behavior"],
                 "format": "mrs",
-                "url": f"{BASE_URL}/{r['path']}",
+                "url": f"{base_url}/{r['path']}",
                 "path": f"./ruleset/{r['id']}.mrs",
                 "interval": 86400,
-                "proxy": select_name,
+                "proxy": provider_proxy,
             }
 
     # 补齐前置游戏区块所引用的全平台游戏规则集与 Steam CN 直连集
@@ -557,10 +596,10 @@ def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
                 "type": "http",
                 "behavior": ext_r["behavior"],
                 "format": "mrs",
-                "url": f"{BASE_URL}/{ext_r['path']}",
+                "url": f"{base_url}/{ext_r['path']}",
                 "path": f"./ruleset/{ext_r['id']}.mrs",
                 "interval": 86400,
-                "proxy": select_name,
+                "proxy": provider_proxy,
             }
 
     # 补齐实验性国内域名规则集
@@ -569,14 +608,19 @@ def build_data_models(modules: dict, enabled_set: set[str], test_opts: dict):
             "type": "http",
             "behavior": EXPERIMENTAL_CN["behavior"],
             "format": "mrs",
-            "url": f"{BASE_URL}/{EXPERIMENTAL_CN['path']}",
+            "url": f"{base_url}/{EXPERIMENTAL_CN['path']}",
             "path": f"./ruleset/{EXPERIMENTAL_CN['id']}.mrs",
             "interval": 86400,
-            "proxy": select_name,
+            "proxy": provider_proxy,
         }
 
     # 3. 业务规则链构建 (不含内网前置，内网由覆写入口动态拼接)
-    pre_game_clean = [line for line in PRE_GAME_RULES if not line.startswith("#")]
+    steam_target = name["steam"] if "steam" in enabled_set else select_name
+    pre_game_clean = [
+        line.replace(",Steam", f",{steam_target}")
+        for line in PRE_GAME_RULES
+        if not line.startswith("#")
+    ]
 
     subboost_rules = []
     emitted = set()
@@ -674,9 +718,9 @@ def build_yaml(groups: list[dict], providers: dict, pre_game: list[str], subboos
     w("\n")
 
     w("rules+:\n")
-    # 插入前置游戏精细化直连/代理区块
-    for line in PRE_GAME_RULES:
-        w(f"{line}\n" if line.startswith("#") else f"- {line}\n")
+    # 插入前置游戏精细化直连/代理区块与全球业务规则链
+    for r in pre_game:
+        w(f"- {r}\n")
     for r in subboost_rules:
         w(f"- {r}\n")
 
@@ -689,9 +733,10 @@ def build_all_in_one_js(
     pre_game: list[str],
     subboost_rules: list[str],
     work_config: dict = None,
+    preset_title: str = "全量版 (41 组)",
 ) -> str:
     """
-    全合一 JS 渲染器：组装自包含、跨端通跑的 customSubBoost.js 覆写脚本。
+    全合一 JS 渲染器：组装自包含、跨端通跑的 All-in-One JS 覆写脚本。
     包含顶部用户配置块、节点过滤引擎、DNS治理、策略组注入与全量规则链。
     支持自动将本地 private_work.json 真实配置打包注入顶部 CONFIG 对象。
     """
@@ -717,7 +762,7 @@ def build_all_in_one_js(
 
     w("/**\n")
     w(" * ==============================================================================\n")
-    w(" * SubBoost 规则体系 · 全合一 Mihomo / Clash JS 覆写版 (customSubBoost.js)\n")
+    w(f" * SubBoost 规则体系 · 全合一 Mihomo / Clash JS 覆写版 [{preset_title}]\n")
     w(" * ==============================================================================\n")
     w(" * \n")
     w(" * 【支持客户端与全平台兼容】\n")
@@ -728,7 +773,7 @@ def build_all_in_one_js(
     w(" * 【三合一能力完整闭环】\n")
     w(" * 1. DNS 统一治理：接管订阅自带回环 DNS，构建 Fake-IP + 国内双 DoH + 工作内网分流策略\n")
     w(" * 2. 节点清洗引擎：过滤公告与流量信息垃圾节点；精准提取倍率并拦截吸血高倍率节点\n")
-    w(" * 3. 完整分流体系：41 策略组（含懒测速与50ms容差） + 94 规则集 + 前置游戏与全球分流规则\n")
+    w(f" * 3. 完整分流体系：{len(groups)} 策略组（含懒测速与50ms容差） + {len(providers)} 规则集 + 前置游戏与分流规则链\n")
     w(" * \n")
     w(" * 【使用指南】\n")
     w(" * 直接复制本文件全部代码，粘贴到客户端的「覆写脚本 / Script」编辑器中保存即可生效。\n")
@@ -746,15 +791,19 @@ def build_all_in_one_js(
     w("  enableLanDirect: true,            // 是否注入局域网直连 (10/8, 172.16/12, 192.168/16, 127/8 等)\n")
     w("  enableFakeIpFilterSteam: true,    // Steam 握手与下载是否直解真实国内 IP (保持 IPCountry=CN)\n\n")
 
-    w("  // ── 2. 节点过滤引擎开关 (运行时执行) ──\n")
+    w("  // ── 2. 规则集与图标拉取策略 (解决冷启动 EOF 与代理死锁) ──\n")
+    w('  ruleProviderProxy: "DIRECT",     // 规则集拉取通道："DIRECT"（推荐，彻底规避冷启动死锁）或 "节点选择"\n')
+    w('  ruleProviderCdn: "fastly",       // 镜像源预设："fastly" | "gcore" | "cdn" | "testingcf"\n\n')
+
+    w("  // ── 3. 节点过滤引擎开关 (运行时执行) ──\n")
     w("  cleanTrashNodes: true,            // 是否过滤公告/流量到期等垃圾信息节点\n")
     w("  cleanHighMultiplier: true,        // 是否过滤高倍率吸血节点\n")
     w("  maxMultiplier: 1.0,               // 允许的最大节点倍率（<= 1.0 保留，> 1.0 剔除）\n\n")
 
-    w("  // ── 3. 工作内网分流与直连开关 ──\n")
+    w("  // ── 4. 工作内网分流与直连开关 ──\n")
     w(f"  enableWorkRules: {'true' if enable_work else 'false'},            // 是否启用工作内网直连与专属分流\n\n")
 
-    w("  // ── 4. 工作内网专属 DNS 策略 (nameserver-policy) ──\n")
+    w("  // ── 5. 工作内网专属 DNS 策略 (nameserver-policy) ──\n")
     w("  // 格式: { \"域名通配\": \"DNS服务器IP或system\" }\n")
     w("  workNameserverPolicy: {\n")
     w("    // 示例: \"+.corp.internal\": \"10.0.0.53\",\n")
@@ -763,21 +812,21 @@ def build_all_in_one_js(
         w(line)
     w("  },\n\n")
 
-    w("  // ── 5. 工作内网域名白名单 (直连 + 自动绕过 Fake-IP + 防污染过滤) ──\n")
+    w("  // ── 6. 工作内网域名白名单 (直连 + 自动绕过 Fake-IP + 防污染过滤) ──\n")
     w("  workDomains: [\n")
     w("    // 示例: \"oa.company.com\", \"+.corp.internal\",\n")
     for line in injected_domains_lines:
         w(line)
     w("  ],\n\n")
 
-    w("  // ── 6. 工作内网专属 IP / CIDR 网段直连 ──\n")
+    w("  // ── 7. 工作内网专属 IP / CIDR 网段直连 ──\n")
     w("  workIpCidrs: [\n")
     w("    // 示例: \"10.20.0.0/16\", \"172.16.50.0/24\",\n")
     for line in injected_cidrs_lines:
         w(line)
     w("  ],\n\n")
 
-    w("  // ── 7. 工作内网专属进程直连 (桌面端生效，移动端自动忽略) ──\n")
+    w("  // ── 8. 工作内网专属进程直连 (桌面端生效，移动端自动忽略) ──\n")
     w("  workProcesses: [\n")
     w("    // 示例: \"corp-vpn.exe\", \"company-agent.exe\",\n")
     for line in injected_processes_lines:
@@ -973,7 +1022,7 @@ function main(config) {
   // ==========================================================================
   // 第三步：策略组注入与级联引用清理
   // ==========================================================================
-  // 注入预编译的 SubBoost 41 个策略组（深拷贝避免受外部修改影响）
+  // 注入预编译的 SubBoost 策略组（深拷贝避免受外部修改影响）
   const groups = JSON.parse(JSON.stringify(SUBBOOST_PROXY_GROUPS));
 
   // 级联清理：若策略组显式声明了 proxies 列表，剔除已被移除的节点名
@@ -985,9 +1034,43 @@ function main(config) {
   config["proxy-groups"] = groups;
 
   // ==========================================================================
-  // 第四步：规则提供者 (rule-providers) 注入
+  // 第四步：规则提供者 (rule-providers) 注入与运行时动态改写 (解耦冷启动死锁)
   // ==========================================================================
-  config["rule-providers"] = Object.assign({}, config["rule-providers"] || {}, SUBBOOST_RULE_PROVIDERS);
+  const CDN_DOMAINS = {
+    fastly: "fastly.jsdelivr.net",
+    gcore: "gcore.jsdelivr.net",
+    cdn: "cdn.jsdelivr.net",
+    testingcf: "testingcf.jsdelivr.net",
+  };
+  const activeCdnHost = (CONFIG.ruleProviderCdn && CDN_DOMAINS[CONFIG.ruleProviderCdn])
+    ? CDN_DOMAINS[CONFIG.ruleProviderCdn]
+    : (CONFIG.ruleProviderCdn || "fastly.jsdelivr.net");
+  const activeProxy = (CONFIG.ruleProviderProxy !== undefined)
+    ? CONFIG.ruleProviderProxy
+    : "DIRECT";
+
+  const ruleProviders = JSON.parse(JSON.stringify(SUBBOOST_RULE_PROVIDERS));
+  for (const p of Object.values(ruleProviders)) {
+    if (activeProxy) {
+      p.proxy = activeProxy;
+    } else {
+      delete p.proxy;
+    }
+    if (activeCdnHost && activeCdnHost !== "fastly.jsdelivr.net") {
+      p.url = p.url.replace("fastly.jsdelivr.net", activeCdnHost);
+    }
+  }
+
+  // 若运行时配置了非默认 CDN，同步重定向策略组中的图标 URL
+  if (activeCdnHost && activeCdnHost !== "fastly.jsdelivr.net") {
+    for (const group of groups) {
+      if (group.icon && typeof group.icon === "string") {
+        group.icon = group.icon.replace("fastly.jsdelivr.net", activeCdnHost);
+      }
+    }
+  }
+
+  config["rule-providers"] = Object.assign({}, config["rule-providers"] || {}, ruleProviders);
 
   // ==========================================================================
   // 第五步：全量分流规则链拼装 (First-Match-Win 严格保序)
@@ -1053,7 +1136,7 @@ if (typeof module !== "undefined" && module.exports) {
 # 第八部分：自检与自动化语法校验 (SELF-CHECK)
 # ============================================================================
 
-def self_check_yaml(yaml_text: str) -> None:
+def self_check_yaml(yaml_text: str, expected_provider_count: int = None) -> None:
     """自动化校验生成的 YAML 覆写配置。"""
     if not re.search(r"^rules\+:\s*$", yaml_text, re.M):
         raise ValueError("【严重错误】未找到 'rules+:' 追加声明！严禁生成整段覆盖的 rules:")
@@ -1074,9 +1157,24 @@ def self_check_yaml(yaml_text: str) -> None:
         if f"\n  {rset}:" not in providers_block:
             raise ValueError(f"【严重错误】规则链引用的 RULE-SET '{rset}' 未在 rule-providers 中定义！")
 
+    # 引用完整性断言：确保每一条规则的目标策略组均已在 proxy-groups 中声明
+    declared_groups = set(re.findall(r'^\s*-\s+name:\s*["\']?([^"\']+)["\']?', yaml_text[:yaml_text.find("\nrule-providers:")], re.M))
+    valid_targets = declared_groups | {"DIRECT", "REJECT", "COMPATIBLE", "PASS"}
+    for line in rules_block.splitlines():
+        line = line.strip()
+        if not line.startswith("- "):
+            continue
+        parts = line[2:].split(",")
+        if len(parts) >= 3 and parts[2] not in ("no-resolve",):
+            target = parts[2].strip()
+            if target not in valid_targets:
+                raise ValueError(f"【严重错误】规则 '{line[2:]}' 的目标策略组 '{target}' 未在 proxy-groups 中声明！")
+
     provider_count = len(re.findall(r"^  \S+:\s*$", providers_block, re.M))
-    if provider_count != 94:
-        raise ValueError(f"【严重错误】rule-providers 数量预期为 94，实测为 {provider_count}！")
+    if expected_provider_count is not None and provider_count != expected_provider_count:
+        raise ValueError(f"【严重错误】rule-providers 数量预期为 {expected_provider_count}，实测为 {provider_count}！")
+    if provider_count == 0:
+        raise ValueError("【严重错误】rule-providers 数量为 0！")
 
 
 def self_check_js(js_text: str) -> None:
@@ -1113,16 +1211,11 @@ def self_check_js(js_text: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="SubBoost 规则体系 全合一跨端覆写生成器")
     parser.add_argument(
-        "--js-output",
-        type=Path,
-        default=DEFAULT_OUTPUT_JS,
-        help=f"All-in-One JS 覆写输出路径 (默认: {DEFAULT_OUTPUT_JS})",
-    )
-    parser.add_argument(
-        "--yaml-output",
-        type=Path,
-        default=DEFAULT_OUTPUT_YAML,
-        help=f"YAML 覆写输出路径 (默认: {DEFAULT_OUTPUT_YAML})",
+        "--preset",
+        type=str,
+        default="all",
+        choices=["all", "minimal", "standard", "full"],
+        help="生成档位: all (默认直接并行生成 3 档) | minimal (极简 ~15组) | standard (标准 ~22组) | full (全量 41组)",
     )
     parser.add_argument(
         "--yaml-only",
@@ -1134,47 +1227,93 @@ def main() -> None:
         action="store_true",
         help="仅生成 All-in-One JS 覆写产物",
     )
+    parser.add_argument(
+        "--provider-proxy",
+        type=str,
+        default="DIRECT",
+        help="规则集提供者默认代理通道 (默认: DIRECT，彻底消除冷启动死锁；可选 节点选择 等)",
+    )
+    parser.add_argument(
+        "--cdn-host",
+        type=str,
+        default=DEFAULT_CDN_HOST,
+        help=f"规则集与图标的 CDN 域名 (默认: {DEFAULT_CDN_HOST})",
+    )
     args = parser.parse_args()
 
     if not MODULES_TS.exists():
         sys.exit(f"【致命错误】找不到模块定义文件: {MODULES_TS}")
 
     modules = parse_modules(MODULES_TS.read_text(encoding="utf-8"))
-    enabled_set, test_opts = load_rules_profile()
-    enabled_count = len([m for m in enabled_set if m in modules and m not in {"select", "auto", "ad", "private", "cn", "global", "final", "__regions__"}])
-    print(f"[*] 成功解析上游模块 {len(modules)} 个，当前配置启用业务组 {enabled_count} 个")
+    full_enabled_set, test_opts = load_rules_profile()
 
-    groups, providers, pre_game, subboost_rules = build_data_models(modules, enabled_set, test_opts)
+    tiers = ["minimal", "standard", "full"] if args.preset == "all" else [args.preset]
 
-    # 1. 构建与写出 JS 产物
-    if not args.yaml_only:
-        work_config = load_private_work_config()
-        if work_config:
-            print("[*] 检测到本地私有配置 config/private_work.json，正在自动打包注入 customSubBoost.js...")
+    work_config = load_private_work_config()
+    if work_config:
+        print("[*] 检测到本地私有配置 config/private_work.json，正在自动打包注入自用 JS 覆写...")
+    else:
+        print("[*] 未检测到本地私有配置，使用纯净配置模板生成...")
+
+    OVERRIDE_DIR.mkdir(parents=True, exist_ok=True)
+
+    for tier in tiers:
+        preset_info = PRESETS[tier]
+        if preset_info["modules"] is not None:
+            tier_enabled = set(preset_info["modules"])
         else:
-            print("[*] 未检测到本地私有配置，使用纯净配置模板生成...")
+            tier_enabled = set(full_enabled_set)
 
-        # 生成本地直接开箱即用版（注入个人工作内网信息）
-        js_text = build_all_in_one_js(groups, providers, pre_game, subboost_rules, work_config=work_config)
-        self_check_js(js_text)
-        args.js_output.parent.mkdir(parents=True, exist_ok=True)
-        args.js_output.write_text(js_text, encoding="utf-8")
-        print(f"[✔] 全合一 JS 覆写生成成功: {args.js_output} (共 {len(js_text)} 字节, {js_text.count(chr(10))} 行)")
+        groups, providers, pre_game, subboost_rules = build_data_models(
+            modules,
+            tier_enabled,
+            test_opts,
+            provider_proxy=args.provider_proxy,
+            cdn_host=args.cdn_host,
+        )
 
-        # 同步生成脱敏纯净示例模板（供 Git 追踪，永不包含个人敏感信息）
-        example_js_text = build_all_in_one_js(groups, providers, pre_game, subboost_rules, work_config=None)
-        DEFAULT_EXAMPLE_JS.write_text(example_js_text, encoding="utf-8")
-        print(f"[✔] 脱敏示例模板生成成功: {DEFAULT_EXAMPLE_JS} (共 {len(example_js_text)} 字节, 供 Git 追踪)")
+        enabled_biz = len([m for m in tier_enabled if m in modules and m not in {"select", "auto", "ad", "private", "cn", "global", "final", "__regions__"}])
+        print(f"\n[{tier.upper()}] 正在构建 {preset_info['name']} (策略组: {len(groups)} 组, 规则集: {len(providers)} 个, 业务模块: {enabled_biz} 个)...")
 
-    # 2. 构建与写出 YAML 产物
-    if not args.js_only:
-        yaml_text = build_yaml(groups, providers, pre_game, subboost_rules)
-        self_check_yaml(yaml_text)
-        args.yaml_output.parent.mkdir(parents=True, exist_ok=True)
-        args.yaml_output.write_text(yaml_text, encoding="utf-8")
-        print(f"[✔] 备用 YAML 覆写生成成功: {args.yaml_output} (共 {len(yaml_text)} 字节, {yaml_text.count(chr(10))} 行)")
+        # 1. 构建与写出 JS 产物
+        if not args.yaml_only:
+            js_path = OVERRIDE_DIR / f"customSubBoost.{tier}.js"
+            example_js_path = OVERRIDE_DIR / f"customSubBoost.{tier}.example.js"
 
-    print("[*] 自检断言全部通过：41 个策略组、94 个规则集提供者、规则集零孤儿引用、Node.js 语法校验通过！")
+            # 生成本地直接开箱即用版（注入个人工作内网信息）
+            js_text = build_all_in_one_js(
+                groups,
+                providers,
+                pre_game,
+                subboost_rules,
+                work_config=work_config,
+                preset_title=preset_info["name"],
+            )
+            self_check_js(js_text)
+            js_path.write_text(js_text, encoding="utf-8")
+            print(f"  [✔] JS 覆写生成成功: {js_path.name} (共 {len(js_text)} 字节, {js_text.count(chr(10))} 行)")
+
+            # 同步生成脱敏纯净示例模板（供 Git 追踪，永不包含个人敏感信息）
+            example_js_text = build_all_in_one_js(
+                groups,
+                providers,
+                pre_game,
+                subboost_rules,
+                work_config=None,
+                preset_title=preset_info["name"],
+            )
+            example_js_path.write_text(example_js_text, encoding="utf-8")
+            print(f"  [✔] 脱敏示例模板生成成功: {example_js_path.name} (共 {len(example_js_text)} 字节, 供 Git 追踪)")
+
+        # 2. 构建与写出 YAML 产物
+        if not args.js_only:
+            yaml_path = OVERRIDE_DIR / f"customSubBoost.{tier}.yaml"
+            yaml_text = build_yaml(groups, providers, pre_game, subboost_rules)
+            self_check_yaml(yaml_text)
+            yaml_path.write_text(yaml_text, encoding="utf-8")
+            print(f"  [✔] 备用 YAML 覆写生成成功: {yaml_path.name} (共 {len(yaml_text)} 字节, {yaml_text.count(chr(10))} 行)")
+
+    print(f"\n[*] 自检断言全部通过：全部 {len(tiers)} 个档位均已成功输出至 {OVERRIDE_DIR.name}/ 目录！")
 
 
 if __name__ == "__main__":

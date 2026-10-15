@@ -15,7 +15,7 @@
 |---|---|---|---|
 | **策略组总数 (proxy-groups)** | 41 个 | 🟢 优良 | 全面引入 `lazy: true`、`tolerance: 50`，消除并发测速风暴 |
 | **规则条目 (rules)** | 132 条 | 🟢 卓越 | 拓扑保序排列，内网与高频直连秒级命中 |
-| **远程规则集 (rule-providers)** | 94 个 HTTP MRS | 🟢 优良 | 全量配置 `proxy: 节点选择`，杜绝 jsdelivr 直连 429/EOF 异常 |
+| **远程规则集 (rule-providers)** | 94 个 HTTP MRS | 🟢 卓越 | 默认 `DIRECT` + `fastly.jsdelivr.net` 高可用 CDN，彻底消除冷启动代理死锁与 EOF 异常 |
 | **规则展开内存条目总数** | 约 17.2 万条 | 🟢 优良 | 使用 `.mrs` 二进制 Radix Tree 结构，内存常驻仅 ~70MB |
 | **内核冷启动测试耗时** | 26ms ~ 35ms | 🟢 极速 | `mihomo-test.exe -t` 实测毫秒级解析通过 |
 | **节点池规模优化** | 缩减 50% ~ 65% | 🟢 卓越 | 运行时自动剔除垃圾提示节点与 >1.5x 高倍率节点 |
@@ -28,10 +28,13 @@
 
 #### 【问题根因】
 - 本项目声明了 94 个独立的 HTTP `rule-provider`。
-- 若规则集不指定 `proxy`，在全新初始化或缓存过期时，内核会在国内网络下并发向 jsdelivr 建立 94 个连接，由于国内 GFW 干扰与边缘限速，极易遭遇 `429 Too Many Requests` 或 `SSL EOF`。
+- **冷启动鸡生蛋死锁 (Bootstrap Deadlock)**：若规则集指定 `proxy: 节点选择`，在客户端首次冷启动加载配置阶段，由于代理通道尚未完成健康检查建连，内核在初始化规则阶段强行通过未就绪代理拉取，会导致连接瞬间被切断报 `EOF`。
+- **TLS 重协商断流**：若采用 `testingcf.jsdelivr.net` 等 Cloudflare 测试镜像，其主动触发的 TLS 重协商请求会被 Go 语言标准库直接切断（报 `EOF`）。
 
 #### 【已落地优化方案】
-- **全量注入代理通道**：所有 94 个 rule-provider 强制配置 `proxy: 节点选择`，使规则集更新走稳定的代理通道。
+- **国内直连高可用 CDN 架构**：全量规则集与图标资源默认迁移至 `fastly.jsdelivr.net`，实测大陆直连 0.5s HTTP 200，无 TLS 重协商阻断。
+- **默认通道解耦为 DIRECT**：彻底斩断冷启动时对代理节点的握手依赖死锁，规则集在客户端启动瞬间毫秒级静默拉取完毕。
+- **CONFIG 运行时声明式切换**：在 JS 顶部提供 `ruleProviderProxy`（`"DIRECT"` / `"节点选择"`）与 `ruleProviderCdn` 开关，按需在客户端直接微调。
 - **24 小时懒加载更新周期**：所有 provider 配置 `interval: 86400`，杜绝短时间内的无谓重复拉取。
 
 ---

@@ -7,13 +7,23 @@ from pathlib import Path
 
 import yaml
 
+import sys
+
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
-OVERRIDE_YAML = REPO_ROOT / "override" / "customSubBoost.yaml"
+OVERRIDE_YAML = REPO_ROOT / "override" / "customSubBoost.full.yaml"
 if not OVERRIDE_YAML.exists():
-    OVERRIDE_YAML = REPO_ROOT / "override" / "1b0sb00st01.yaml"
-
-BASE_PREFIX = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo"
+    for tier in ["standard", "minimal"]:
+        p = REPO_ROOT / "override" / f"customSubBoost.{tier}.yaml"
+        if p.exists():
+            OVERRIDE_YAML = p
+            break
 
 
 def head(url: str, timeout: int = 40, retries: int = 4) -> tuple[int, int, str]:
@@ -45,8 +55,7 @@ def main() -> int:
 
     items = []
     for pid, cfg in providers.items():
-        path = cfg["url"].split("/geo/", 1)[1]  # 取出 geo/ 后面的相对路径
-        items.append((pid, f"{BASE_PREFIX}/{path}", cfg["behavior"]))
+        items.append((pid, cfg["url"], cfg["behavior"]))
 
     print(f"共 {len(items)} 个规则集，3 并发探测（带退避重试）\n")
 

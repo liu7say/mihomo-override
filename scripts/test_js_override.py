@@ -4,12 +4,14 @@
 ==============================================================================
 
 【功能定位】
-利用 Node.js 真实运行环境，对 override/customSubBoost.js 执行全方位运行时行为仿真：
+利用 Node.js 真实运行环境，对 override/ 目录下的三大预设档位
+(minimal / standard / full) 执行全方位运行时行为仿真：
 1. 节点清洗引擎：验证垃圾节点过滤与高倍率识别（排除 -X2 线路误伤）；
 2. 策略组级联清洗：验证策略组中的已剔除节点是否被彻底移除（零死链引用）；
 3. 全局 DNS 与 Fake-IP：验证 Fake-IP 绕过规则与工作内网专有 DNS 策略合并；
 4. 规则链拓扑保序：验证局域网直连、工作内网直连、游戏直连/代理与 MATCH 兜底；
-5. 空安全防御：验证在空配置或异常字段输入时稳定运行、永不抛出未捕获异常。
+5. 空安全防御：验证在空配置或异常字段输入时稳定运行、永不抛出未捕获异常；
+6. 规则集拉取通道与动态 CDN 声明：验证默认 DIRECT 与运行时动态切换。
 """
 
 import json
@@ -18,11 +20,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+# 确保在 Windows 控制台环境下输出 UTF-8
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
-JS_PATH = REPO_ROOT / "override" / "customSubBoost.js"
-if not JS_PATH.exists():
-    JS_PATH = REPO_ROOT / "override" / "customSubBoost.example.js"
 
 
 def run_node_test(test_script: str) -> dict:
@@ -40,11 +46,14 @@ def run_node_test(test_script: str) -> dict:
     return json.loads(proc.stdout)
 
 
-def main() -> int:
-    if not JS_PATH.exists():
-        sys.exit(f"【致命错误】找不到 JS 覆写文件: {JS_PATH}")
+def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
+    js_path = REPO_ROOT / "override" / f"customSubBoost.{tier}.js"
+    if not js_path.exists():
+        js_path = REPO_ROOT / "override" / f"customSubBoost.{tier}.example.js"
+    if not js_path.exists():
+        sys.exit(f"【致命错误】找不到 JS 覆写文件: {js_path}")
 
-    js_rel = os.path.relpath(JS_PATH, REPO_ROOT).replace("\\", "/")
+    js_rel = os.path.relpath(js_path, REPO_ROOT).replace("\\", "/")
 
     test_driver = f"""
     const {{ main, CONFIG }} = require('./{js_rel}');
@@ -54,7 +63,7 @@ def main() -> int:
       proxies: [
         {{ name: "🇺🇸 美国 01", type: "ss", server: "1.1.1.1", port: 443 }},
         {{ name: "🇭🇰 香港 02 | 1x", type: "ss", server: "1.1.1.2", port: 443 }},
-        {{ name: "🇯🇵 日本 IEPL-X2", type: "ss", server: "1.1.1.3", port: 443 }}, // 线路编号，倍率应为 null，必须保留
+        {{ name: "🇯🇵 日本 IEPL-X2", type: "ss", server: "1.1.1.3", port: 443 }}, // 线路代号，必须保留
         {{ name: "🇸🇬 狮城 04 [2x]", type: "ss", server: "1.1.1.4", port: 443 }},  // 2倍率，必须剔除
         {{ name: "到期时间: 2026-12-31", type: "ss", server: "1.1.1.5", port: 443 }}, // 垃圾节点，必须剔除
         {{ name: "剩余流量: 500G", type: "ss", server: "1.1.1.6", port: 443 }},       // 垃圾节点，必须剔除
@@ -100,12 +109,29 @@ def main() -> int:
     const testGroup = output["proxy-groups"].find(g => g.name === "自定义测试组");
     const testGroupProxies = testGroup ? testGroup.proxies : [];
     const providersCount = Object.keys(output["rule-providers"]).length;
+    const sampleProvider = output["rule-providers"]["cn"] || {{}};
+
+    // 动态切换 proxy 验证
+    CONFIG.ruleProviderProxy = "节点选择";
+    const switchedProxyOutput = main(JSON.parse(JSON.stringify(mockInput)));
+    const switchedSampleProxy = switchedProxyOutput["rule-providers"]["cn"] ? switchedProxyOutput["rule-providers"]["cn"].proxy : "";
+
+    // 动态切换 CDN 验证
+    CONFIG.ruleProviderCdn = "gcore";
+    const switchedCdnOutput = main(JSON.parse(JSON.stringify(mockInput)));
+    const switchedSampleUrl = switchedCdnOutput["rule-providers"]["cn"] ? switchedCdnOutput["rule-providers"]["cn"].url : "";
+    const switchedSampleIcon = switchedCdnOutput["proxy-groups"][0] ? switchedCdnOutput["proxy-groups"][0].icon : "";
 
     console.log(JSON.stringify({{
       remainingProxies: remainingProxies,
       groupsCount: groupsCount,
       testGroupProxies: testGroupProxies,
       providersCount: providersCount,
+      defaultProviderProxy: sampleProvider.proxy,
+      defaultProviderUrl: sampleProvider.url,
+      switchedSampleProxy: switchedSampleProxy,
+      switchedSampleUrl: switchedSampleUrl,
+      switchedSampleIcon: switchedSampleIcon,
       hasDns: !!output.dns,
       dnsFakeIpFilters: output.dns ? output.dns["fake-ip-filter"] : [],
       dnsPolicy: output.dns ? output.dns["nameserver-policy"] : {{}},
@@ -113,60 +139,84 @@ def main() -> int:
       rulesTop: output.rules.slice(0, 15),
       rulesBottom: output.rules.slice(-3),
       emptySafe: Array.isArray(emptyOutput["proxy-groups"]) && Array.isArray(nullOutput.rules),
+      groupNames: output["proxy-groups"].map(g => g.name),
+      providerKeys: Object.keys(output["rule-providers"]),
+      allRules: output.rules,
     }}));
     """
 
-    print("[*] 正在启动 Node.js 进行 customSubBoost.js 运行时全量断言核查...")
     res = run_node_test(test_driver)
-
     remaining = res["remainingProxies"]
-    print(f"  清洗后剩余代理节点 ({len(remaining)} 个): {remaining}")
 
-    # 断言 1: 垃圾节点必须被彻底剔除
-    assert "到期时间: 2026-12-31" not in remaining, "✘ 垃圾公告节点未被过滤！"
-    assert "剩余流量: 500G" not in remaining, "✘ 剩余流量信息节点未被过滤！"
+    # 断言 1: 垃圾节点过滤
+    assert "到期时间: 2026-12-31" not in remaining, f"✘ [{tier}] 垃圾公告节点未被过滤！"
+    assert "剩余流量: 500G" not in remaining, f"✘ [{tier}] 剩余流量信息节点未被过滤！"
 
-    # 断言 2: 高倍率节点必须被过滤，低倍率与线路代号保留
-    assert "🇸🇬 狮城 04 [2x]" not in remaining, "✘ 2x 高倍率节点未被过滤！"
-    assert "🇺🇸 美国 01" in remaining, "✘ 普通节点误伤！"
-    assert "🇯🇵 日本 IEPL-X2" in remaining, "✘ IEPL-X2 线路代号被误伤过滤！"
-    print("  ✔ 节点清洗引擎断言通过（垃圾节点过滤、2x高倍率剔除、IEPL-X2正确保留）")
+    # 断言 2: 倍率过滤与保留
+    assert "🇸🇬 狮城 04 [2x]" not in remaining, f"✘ [{tier}] 2x 高倍率节点未被过滤！"
+    assert "🇺🇸 美国 01" in remaining, f"✘ [{tier}] 普通节点误伤！"
+    assert "🇯🇵 日本 IEPL-X2" in remaining, f"✘ [{tier}] IEPL-X2 线路代号被误伤过滤！"
 
-    # 断言 3: 策略组数量为 41 个（加原始组共 41 个 SubBoost 组）
-    assert res["groupsCount"] >= 41, f"✘ 策略组数量不足 41，实测 {res['groupsCount']}"
-    print(f"  ✔ 策略组全量注入通过 (共 {res['groupsCount']} 组)")
+    # 断言 3: 策略组数量核验
+    assert res["groupsCount"] == exp_groups, f"✘ [{tier}] 策略组数量预期 {exp_groups}，实测 {res['groupsCount']}"
 
-    # 断言 4: 规则集数量必须达到 94 个
-    assert res["providersCount"] == 94, f"✘ 规则集数量预期 94，实测 {res['providersCount']}"
-    print(f"  ✔ 规则集提供者全量注入通过 (共 {res['providersCount']} 个 MRS 规则集)")
+    # 断言 4: 规则集数量核验
+    assert res["providersCount"] == exp_providers, f"✘ [{tier}] 规则集数量预期 {exp_providers}，实测 {res['providersCount']}"
 
-    # 断言 5: 策略组级联清理无死链
+    # 断言 5: 级联清理无死链
     test_group_proxies = res["testGroupProxies"]
-    assert "🇸🇬 狮城 04 [2x]" not in test_group_proxies, "✘ 策略组中残留已剔除的高倍率节点！"
-    assert "剩余流量: 500G" not in test_group_proxies, "✘ 策略组中残留已剔除的垃圾节点！"
-    print("  ✔ 策略组级联引用清洗断言通过 (无已删除节点的残留死链)")
+    assert "🇸🇬 狮城 04 [2x]" not in test_group_proxies, f"✘ [{tier}] 策略组中残留已剔除的高倍率节点！"
+    assert "剩余流量: 500G" not in test_group_proxies, f"✘ [{tier}] 策略组中残留已剔除的垃圾节点！"
 
-    # 断言 6: DNS 与 Fake-IP 白名单合并
+    # 断言 6: DNS 与 Fake-IP 白名单
     fake_filters = res["dnsFakeIpFilters"]
-    assert "+.corp.internal" in fake_filters, "✘ 工作域名未自动并入 Fake-IP 放行列表！"
-    assert res["dnsPolicy"].get("+.corp.internal") == "10.0.0.53", "✘ 工作内网专有 DNS 策略未正确注入！"
-    print("  ✔ DNS 与 Fake-IP 体系断言通过 (DoH、Steam握手直解与工作内网专有DNS均生效)")
+    assert "+.corp.internal" in fake_filters, f"✘ [{tier}] 工作域名未自动并入 Fake-IP 放行列表！"
+    assert res["dnsPolicy"].get("+.corp.internal") == "10.0.0.53", f"✘ [{tier}] 工作内网专有 DNS 策略未正确注入！"
 
-    # 断言 7: 规则链顺序拓扑严格保序
+    # 断言 7: 规则链保序
     rules_top = res["rulesTop"]
     rules_bottom = res["rulesBottom"]
-    assert any("10.0.0.0/8" in r for r in rules_top), "✘ 规则链最前端缺少局域网私有网段直连！"
-    assert any("corp.internal" in r for r in rules_top), "✘ 规则链缺少前置工作域名直连！"
-    assert any("corp-vpn.exe" in r for r in rules_top), "✘ 规则链缺少前置工作进程直连！"
-    assert rules_bottom[-1].startswith("MATCH,"), "✘ 规则链末尾不是 MATCH 兜底！"
-    print(f"  ✔ 规则链拓扑保序断言通过 (共 {res['rulesCount']} 条，局域网->工作直连->游戏->SubBoost->MATCH)")
+    assert any("10.0.0.0/8" in r for r in rules_top), f"✘ [{tier}] 规则链最前端缺少局域网私有网段直连！"
+    assert any("corp.internal" in r for r in rules_top), f"✘ [{tier}] 规则链缺少前置工作域名直连！"
+    assert any("corp-vpn.exe" in r for r in rules_top), f"✘ [{tier}] 规则链缺少前置工作进程直连！"
+    assert rules_bottom[-1].startswith("MATCH,"), f"✘ [{tier}] 规则链末尾不是 MATCH 兜底！"
 
     # 断言 8: 空安全检查
-    assert res["emptySafe"] is True, "✘ 空配置防御失败！"
-    print("  ✔ 防御性空安全断言通过 (main({}) 与 main(null) 稳定零崩溃)")
+    assert res["emptySafe"] is True, f"✘ [{tier}] 空配置防御失败！"
+
+    # 断言 9: 规则集拉取通道与动态 CDN
+    assert res["defaultProviderProxy"] == "DIRECT", f"✘ [{tier}] 默认规则集拉取通道应为 DIRECT，实测 {res['defaultProviderProxy']}"
+    assert "fastly.jsdelivr.net" in res["defaultProviderUrl"], f"✘ [{tier}] 默认规则集 CDN 应为 fastly.jsdelivr.net，实测 {res['defaultProviderUrl']}"
+    assert res["switchedSampleProxy"] == "节点选择", f"✘ [{tier}] 动态切换 ruleProviderProxy 为 '节点选择' 失败！实测 {res['switchedSampleProxy']}"
+    assert "gcore.jsdelivr.net" in res["switchedSampleUrl"], f"✘ [{tier}] 动态切换 ruleProviderCdn 为 'gcore' 失败！实测 {res['switchedSampleUrl']}"
+    assert "gcore.jsdelivr.net" in res["switchedSampleIcon"], f"✘ [{tier}] 动态切换 CDN 后策略组图标 URL 未同步更新！实测 {res['switchedSampleIcon']}"
+
+    # 断言 10: 规则链引用完整性 (Referential Integrity Check)
+    group_names = set(res["groupNames"]) | {"DIRECT", "REJECT", "COMPATIBLE", "PASS"}
+    provider_keys = set(res["providerKeys"])
+    for r in res["allRules"]:
+        parts = r.split(",")
+        if parts[0] == "RULE-SET":
+            assert parts[1] in provider_keys, f"✘ [{tier}] 规则引用的 RULE-SET '{parts[1]}' 未在 rule-providers 中声明！"
+        if len(parts) >= 3 and parts[2] not in ("no-resolve",):
+            tgt = parts[2]
+            assert tgt in group_names, f"✘ [{tier}] 规则 '{r}' 的目标策略组 '{tgt}' 未在 proxy-groups 中声明！"
+
+    print(f"  [✔] {tier.upper()} 档位 10 项断言全部通过 (策略组 {res['groupsCount']} 组, 规则集 {res['providersCount']} 个, 规则链 {res['rulesCount']} 条)")
+
+
+def main() -> int:
+    print("[*] 正在启动 Node.js 进行全部 3 个档位运行时全量断言核查...")
+    tiers = [
+        ("minimal", 16, 12),
+        ("standard", 23, 24),
+        ("full", 41, 94),
+    ]
+    for tier, exp_g, exp_p in tiers:
+        test_tier(tier, exp_g, exp_p)
 
     print("\n============================================================")
-    print("✔ customSubBoost.js 全合一覆写运行时测试全部 100% 通过！")
+    print("✔ 全部 3 个预设档位 (minimal / standard / full) 运行时测试全部 100% 通过！")
     print("============================================================")
     return 0
 

@@ -23,6 +23,9 @@ from pathlib import Path
 
 import yaml
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # 项目路径定义
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
@@ -30,11 +33,8 @@ sys.path.insert(0, str(HERE))
 
 from gen_override import REGION_GROUPS
 
-# 优先读取生产覆写产物
-OVERRIDE_YAML = REPO_ROOT / "override" / "customSubBoost.yaml"
-if not OVERRIDE_YAML.exists():
-    OVERRIDE_YAML = REPO_ROOT / "override" / "1b0sb00st01.yaml"
-
+# 生产覆写产物清单（支持三大预设档位）
+DEFAULT_PRESET_TIERS = ["minimal", "standard", "full"]
 
 # 客户端测试运行环境探测
 ROOT = Path(os.environ.get("MIHOMO_PARTY_BASE") or (Path.home() / "AppData" / "Roaming" / "mihomo-party"))
@@ -139,20 +139,41 @@ def static_check(override_path: Path) -> bool:
 
 
 def main() -> int:
-    if not OVERRIDE_YAML.exists():
-        sys.exit(f"【错误】找不到覆写文件: {OVERRIDE_YAML}")
+    targets: list[Path] = []
+    if len(sys.argv) > 1:
+        custom_target = Path(sys.argv[1])
+        if not custom_target.exists():
+            sys.exit(f"【错误】找不到指定的覆写文件: {custom_target}")
+        targets.append(custom_target)
+    else:
+        for tier in DEFAULT_PRESET_TIERS:
+            p = REPO_ROOT / "override" / f"customSubBoost.{tier}.yaml"
+            if p.exists():
+                targets.append(p)
 
-    # 1. 首先执行必选的静态算法拓扑核查
-    static_ok = static_check(OVERRIDE_YAML)
+    if not targets:
+        sys.exit("【错误】在 override/ 目录下未找到任何 customSubBoost.*.yaml 覆写文件！")
 
-    # 2. 检查环境是否支持动态实测
+    all_passed = True
+    print(f"[*] 开始对 {len(targets)} 个预设覆写产物进行拓扑与环引用核查...")
+    for idx, target in enumerate(targets, 1):
+        print(f"\n--- [{idx}/{len(targets)}] 核查目标: {target.name} ---")
+        if not static_check(target):
+            all_passed = False
+
+    if not all_passed:
+        print("\n[✘] 拓扑核查失败：存在环引用或层级超标！")
+        return 1
+
+    print("\n[✔] 全部预设文件的静态拓扑与环引用核查 100% 通过！")
+
+    # 检查环境是否支持动态实测
     if not CORE.exists():
-        print(f"\n[i] 未检测到本地内核二进制 ({CORE})，跳过动态实测阶段。静态检测通过！")
-        return 0 if static_ok else 1
+        print(f"\n[i] 未检测到本地内核二进制 ({CORE})，跳过动态实测阶段。")
+        return 0
 
     print("\n[*] 检测到本地测试内核，启动动态多订阅实测...")
-    # 动态测试逻辑保持对环境的探测与容错
-    return 0 if static_ok else 1
+    return 0
 
 
 if __name__ == "__main__":
