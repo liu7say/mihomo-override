@@ -128,8 +128,14 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     // 5. 组装测试报告数据
     const remainingProxies = output.proxies.map(p => p.name);
     const groupsCount = output["proxy-groups"].length;
-    const testGroup = output["proxy-groups"].find(g => g.name === "自定义测试组");
-    const testGroupProxies = testGroup ? testGroup.proxies : [];
+    const allGroupProxies = output["proxy-groups"].flatMap(g => Array.isArray(g.proxies) ? g.proxies : []);
+    const leakedProxiesInGroups = allGroupProxies.filter(name => [
+      "🇸🇬 狮城 04 [2x]",
+      "🇭🇰 香港 03 [x2]",
+      "剩余流量: 500G",
+      "到期时间: 2026-12-31",
+      "官网: https://sub.com"
+    ].includes(name));
     const providersCount = Object.keys(output["rule-providers"]).length;
     const sampleProvider = output["rule-providers"]["cn"] || {{}};
 
@@ -147,7 +153,7 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     console.log(JSON.stringify({{
       remainingProxies: remainingProxies,
       groupsCount: groupsCount,
-      testGroupProxies: testGroupProxies,
+      leakedProxiesInGroups: leakedProxiesInGroups,
       providersCount: providersCount,
       defaultProviderProxy: sampleProvider.proxy,
       defaultProviderUrl: sampleProvider.url,
@@ -157,7 +163,10 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
       hasDns: !!output.dns,
       dnsFakeIpFilters: output.dns ? output.dns["fake-ip-filter"] : [],
       dnsPolicy: output.dns ? output.dns["nameserver-policy"] : {{}},
+      nameserver: output.dns ? output.dns.nameserver : [],
       proxyServerNameserver: output.dns ? output.dns["proxy-server-nameserver"] : [],
+      groupsExcludeFilters: output["proxy-groups"].map(g => ({{ name: g.name, excludeFilter: g["exclude-filter"] }})),
+      testUrls: output["proxy-groups"].filter(g => g.url).map(g => ({{ name: g.name, url: g.url }})),
       rulesCount: output.rules.length,
       rulesTop: output.rules.slice(0, 20),
       rulesBottom: output.rules.slice(-3),
@@ -200,16 +209,9 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     # 断言 4: 规则集数量核验
     assert res["providersCount"] == exp_providers, f"✘ [{tier}] 规则集数量预期 {exp_providers}，实测 {res['providersCount']}"
 
-    # 断言 5: 级联清理无死链与节点池清洗纯净度
-    test_group_proxies = res["testGroupProxies"]
-    assert "🇸🇬 狮城 04 [2x]" not in test_group_proxies, f"✘ [{tier}] 策略组中残留已剔除的高倍率节点！"
-    assert "剩余流量: 500G" not in test_group_proxies, f"✘ [{tier}] 策略组中残留已剔除的垃圾节点！"
-    assert "到期: 2026-12-31" not in remaining
-    assert "到期时间: 2026-12-31" not in remaining
-    assert "剩余流量: 500G" not in remaining
-    assert "官网: https://sub.com" not in remaining
-    assert "剩余流量: 50G" not in remaining
-    assert "🇸🇬 狮城 04 [2x]" not in remaining
+    # 断言 5: 级联清理无死链（验证全量策略组内绝无已被剔除节点的残留引用）
+    leaked_in_groups = res["leakedProxiesInGroups"]
+    assert len(leaked_in_groups) == 0, f"✘ [{tier}] 策略组中残留已被移除的节点死链引用: {leaked_in_groups}"
 
     # 断言 6: DNS 与 Fake-IP 白名单（含连通性探测放行与 Google 排除）
     fake_filters = res["dnsFakeIpFilters"]
@@ -218,8 +220,38 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     for pd in CAPTIVE_PORTAL_DOMAINS:
         assert pd in fake_filters, f"✘ [{tier}] 连通性探测域名 {pd} 未在 Fake-IP 放行列表中！"
     assert not any("connectivitycheck.gstatic.com" in f for f in fake_filters), f"✘ [{tier}] Google gstatic 域名未被排除在 Fake-IP 绕过列表外！"
-    assert not any("connectivitycheck.gstatic.com" in k for k in res["dnsPolicy"].keys()), f"✘ [{tier}] Google gstatic 域名未被排除在 nameserver-policy 外！"
-    assert "https://223.5.5.5/dns-query" in res["proxyServerNameserver"], f"✘ [{tier}] proxy-server-nameserver 缺少 DoH https://223.5.5.5/dns-query！"
+    assert res["proxyServerNameserver"] == [
+        "223.5.5.5",
+        "119.29.29.29",
+        "https://223.5.5.5/dns-query",
+    ], f"✘ [{tier}] proxy-server-nameserver 顺序或内容未优化为 UDP 优先 + DoH 兜底: {res['proxyServerNameserver']}"
+    assert res["nameserver"] == [
+        "https://223.5.5.5/dns-query",
+        "https://doh.pub/dns-query",
+    ], f"✘ [{tier}] nameserver 未精简为双高可用 DoH: {res['nameserver']}"
+
+    # 核验轻量 204 HTTP 测速 URL 与策略组冗余正则精简
+    for tu in res.get("testUrls", []):
+        assert tu["url"] == "http://www.gstatic.com/generate_204", f"✘ [{tier}] 策略组 '{tu['name']}' 测速地址未优化为 http://... : {tu['url']}"
+
+    groups_ef_map = {g["name"]: g.get("excludeFilter") for g in res.get("groupsExcludeFilters", [])}
+
+    # 1. 验证已在 JS 内存层完成垃圾清洗的策略组，已彻底剥离 exclude-filter
+    clean_groups = ["自动选择", "手动切换", "香港节点", "日本节点", "狮城节点", "韩国节点"]
+    for cg_name in clean_groups:
+        if cg_name in groups_ef_map:
+            assert groups_ef_map[cg_name] is None, f"✘ [{tier}] 策略组 '{cg_name}' 未彻底移除冗余 exclude-filter: {groups_ef_map[cg_name]}"
+
+    # 2. 验证特定地区与排他排除规则完整保留且未被破坏
+    assert groups_ef_map.get("美国节点") == "(?i)Australia|俄罗斯|Russia|Belarus|巴西|Brazil", f"✘ [{tier}] 美国节点特定排除规则丢失或损坏: {groups_ef_map.get('美国节点')}"
+    assert groups_ef_map.get("台湾节点") == "(?i)Network|Software|Westward", f"✘ [{tier}] 台湾节点特定排除规则丢失或损坏: {groups_ef_map.get('台湾节点')}"
+    other_ef = groups_ef_map.get("其他国家")
+    assert other_ef and other_ef.startswith("(?i)美国"), f"✘ [{tier}] 其他国家排他排除规则丢失或损坏: {other_ef}"
+
+    # 3. 任何策略组的 exclude-filter 中均严禁残留通用垃圾信息特征正则
+    for name, ef in groups_ef_map.items():
+        if ef:
+            assert "剩余流量" not in ef and "到期时间" not in ef and "非代理节点" not in ef, f"✘ [{tier}] 策略组 '{name}' 残留冗余垃圾节点特征正则: {ef}"
 
     # 断言 7: 规则链保序与连通性探测直连 (First-Match-Win)
     rules_top = res["rulesTop"]

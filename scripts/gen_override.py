@@ -174,7 +174,7 @@ CAPTIVE_PORTAL_DOMAINS = [
 ]
 
 # 基础测速参数默认值 (依据 PERFORMANCE.md 优化准则)
-DEFAULT_TEST_URL = "https://www.gstatic.com/generate_204"
+DEFAULT_TEST_URL = "http://www.gstatic.com/generate_204"
 DEFAULT_TEST_INTERVAL = 600      # 10 分钟一次，减少 50% 测速握手包
 DEFAULT_TEST_TOLERANCE = 50      # 50ms 切换容差阈值，消灭乒乓切换
 DEFAULT_TEST_LAZY = True         # 懒测速：无流量流经该组时不触发探测
@@ -867,8 +867,33 @@ def build_all_in_one_js(
     w("// 【预编译核心拓扑数据】(由 scripts/gen_override.py 自动编译，请勿直接编辑此段)\n")
     w("// ============================================================================\n")
 
+    # 消除预编译 JS 策略组中的冗余垃圾节点特征正则
+    # （JS 运行时的 TRASH_REGEX 与倍率引擎已在第一步物理剔除垃圾节点；此处消除冗余正则，加速内核装配与热重载；纯 YAML 覆写不受影响）
+    js_groups = []
+    for g in groups:
+        g_copy = dict(g)
+        if "exclude-filter" in g_copy:
+            ex = g_copy["exclude-filter"]
+            if ex in (JUNK, INFO_NODE_RE):
+                del g_copy["exclude-filter"]
+            else:
+                # 剥离 JUNK 前缀/后缀，仅保留各地区或「其他国家」特定的排除正则
+                rem = ex
+                if rem.startswith(f"{JUNK}|"):
+                    rem = rem[len(f"{JUNK}|"):]
+                elif rem.endswith(f"|{JUNK}"):
+                    rem = rem[:-len(f"|{JUNK}")]
+                elif f"|{JUNK}|" in rem:
+                    rem = rem.replace(f"|{JUNK}|", "|")
+                rem = rem.strip().strip("|").strip()
+                if rem:
+                    g_copy["exclude-filter"] = rem
+                else:
+                    del g_copy["exclude-filter"]
+        js_groups.append(g_copy)
+
     w("const SUBBOOST_PROXY_GROUPS = ")
-    w(json.dumps(groups, ensure_ascii=False, indent=2))
+    w(json.dumps(js_groups, ensure_ascii=False, indent=2))
     w(";\n\n")
 
     w("const SUBBOOST_RULE_PROVIDERS = ")
@@ -1039,12 +1064,11 @@ function main(config) {
       nameserver: [
         "https://223.5.5.5/dns-query",
         "https://doh.pub/dns-query",
-        "https://dns.alidns.com/dns-query",
       ],
       "proxy-server-nameserver": [
-        "https://223.5.5.5/dns-query",
         "223.5.5.5",
         "119.29.29.29",
+        "https://223.5.5.5/dns-query",
       ],
       "direct-nameserver": ["system"],
       "nameserver-policy": nameserverPolicy,
@@ -1216,6 +1240,10 @@ def self_check_yaml(yaml_text: str, expected_provider_count: int = None) -> None
         raise ValueError(f"【严重错误】rule-providers 数量预期为 {expected_provider_count}，实测为 {provider_count}！")
     if provider_count == 0:
         raise ValueError("【严重错误】rule-providers 数量为 0！")
+    if "url: http://www.gstatic.com/generate_204" not in yaml_text:
+        raise ValueError("【严重错误】YAML 覆写中未采用轻量 http 测速 URL！")
+    if "剩余流量" not in yaml_text or "非代理节点" not in yaml_text:
+        raise ValueError("【严重错误】YAML 覆写中未保留完整的 exclude-filter 垃圾过滤正则，破坏向后兼容！")
 
 
 def self_check_js(js_text: str) -> None:
@@ -1228,6 +1256,17 @@ def self_check_js(js_text: str) -> None:
         raise ValueError("【严重错误】JS 覆写缺少策略组数据声明！")
     if "SUBBOOST_RULE_PROVIDERS" not in js_text:
         raise ValueError("【严重错误】JS 覆写缺少规则集数据声明！")
+    if '"http://www.gstatic.com/generate_204"' not in js_text:
+        raise ValueError("【严重错误】JS 覆写缺少轻量 http 测速 URL！")
+    if not re.search(r'"proxy-server-nameserver":\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"https://223\.5\.5\.5/dns-query",?\s*\]', js_text):
+        raise ValueError("【严重错误】JS 覆写缺少正确的 proxy-server-nameserver 顺序！")
+    if not re.search(r'nameserver:\s*\[\s*"https://223\.5\.5\.5/dns-query",\s*"https://doh\.pub/dns-query",?\s*\]', js_text):
+        raise ValueError("【严重错误】JS 覆写缺少精简后的双高可用 nameserver！")
+    groups_match = re.search(r'const SUBBOOST_PROXY_GROUPS = (\[.*?\]);\s*\n\s*const SUBBOOST_RULE_PROVIDERS', js_text, re.S)
+    if groups_match:
+        groups_json = groups_match.group(1)
+        if "剩余流量" in groups_json or "非代理节点" in groups_json:
+            raise ValueError("【严重错误】JS 策略组中残留冗余垃圾节点特征正则！")
 
     # 利用本地 Node.js 进行 JavaScript 语法树静态校验
     try:

@@ -90,8 +90,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Auto.png",
     "type": "url-test",
     "include-all": true,
-    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入",
-    "url": "https://www.gstatic.com/generate_204",
+    "url": "http://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -100,8 +99,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "手动切换",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available_1.png",
     "type": "select",
-    "include-all": true,
-    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入"
+    "include-all": true
   },
   {
     "name": "广告拦截",
@@ -296,8 +294,8 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|United.?States|America",
-    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入|(?i)Australia|俄罗斯|Russia|Belarus|巴西|Brazil",
-    "url": "https://www.gstatic.com/generate_204",
+    "exclude-filter": "(?i)Australia|俄罗斯|Russia|Belarus|巴西|Brazil",
+    "url": "http://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -308,8 +306,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)香港|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|Hong.?Kong|HKG",
-    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入",
-    "url": "https://www.gstatic.com/generate_204",
+    "url": "http://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -320,8 +317,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)日本|东京|大阪|川日|沪日|深日|泉日|埼玉|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|Japan|Tokyo|Osaka",
-    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入",
-    "url": "https://www.gstatic.com/generate_204",
+    "url": "http://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -332,8 +328,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)新加坡|狮城|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|Singapore",
-    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入",
-    "url": "https://www.gstatic.com/generate_204",
+    "url": "http://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -344,8 +339,8 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)台湾|台北|台中|新北|彰化|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|Taiwan|Taipei|Kaohsiung",
-    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入|(?i)Network|Software|Westward",
-    "url": "https://www.gstatic.com/generate_204",
+    "exclude-filter": "(?i)Network|Software|Westward",
+    "url": "http://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -356,8 +351,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)韩国|首尔|韓|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)|Korea|KOR",
-    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入",
-    "url": "https://www.gstatic.com/generate_204",
+    "url": "http://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -370,7 +364,7 @@ const SUBBOOST_PROXY_GROUPS = [
       "DIRECT"
     ],
     "include-all": true,
-    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入|(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|United.?States|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|香港|Hong.?Kong|HKG|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|日本|东京|大阪|川日|沪日|深日|泉日|埼玉|Japan|Tokyo|Osaka|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|新加坡|狮城|Singapore|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|台湾|台北|台中|新北|彰化|Taiwan|Taipei|Kaohsiung|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|韩国|首尔|韓|Korea|KOR|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)"
+    "exclude-filter": "(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|United.?States|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|香港|Hong.?Kong|HKG|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|日本|东京|大阪|川日|沪日|深日|泉日|埼玉|Japan|Tokyo|Osaka|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|新加坡|狮城|Singapore|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|台湾|台北|台中|新北|彰化|Taiwan|Taipei|Kaohsiung|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|韩国|首尔|韓|Korea|KOR|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)"
   },
   {
     "name": "非中国",
@@ -848,12 +842,11 @@ function main(config) {
       nameserver: [
         "https://223.5.5.5/dns-query",
         "https://doh.pub/dns-query",
-        "https://dns.alidns.com/dns-query",
       ],
       "proxy-server-nameserver": [
-        "https://223.5.5.5/dns-query",
         "223.5.5.5",
         "119.29.29.29",
+        "https://223.5.5.5/dns-query",
       ],
       "direct-nameserver": ["system"],
       "nameserver-policy": nameserverPolicy,

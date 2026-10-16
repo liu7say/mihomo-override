@@ -3,7 +3,7 @@
   "preset": "full",
   "description": "修改此文件可控制 customSubBoost.*.js 与 customSubBoost.*.yaml 中启用的业务分流模块与测速参数",
   "testOptions": {
-    "url": "https://www.gstatic.com/generate_204",
+    "url": "http://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
