@@ -1,6 +1,6 @@
 """
 ==============================================================================
-SubBoost 规则体系 · 全合一跨端覆写配置生成器 (工业级重构版)
+SubBoost 规则体系 · 全合一跨端覆写配置生成器
 ==============================================================================
 
 【核心功能】
@@ -144,13 +144,34 @@ RULE_ORDER = [
 # SubBoost 默认在 full 模板中排除的模块
 DEFAULT_OFF = {"adult", "gemini", "google-scholar"}
 
-# 信息节点（公告、到期提示、剩余流量等非真实可用节点）过滤正则
+# 信息节点（公告、到期提示、剩余流量等非真实可用节点）过滤正则（精准限定结构化上下文，杜绝误杀名为 [官网专线] 或 优质套餐 的正常节点）
 INFO_NODE_RE = (
-    r"^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\s*[:：]"
-    r"|^(余额|会员)\s*\|"
-    r"|版本太旧|请更新|更新软件|去官网更新"
+    r"(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\s*[:：]"
+    r"|^(?:流量|Traffic)\s*[:：]"
+    r"|(?:官网|发布页|网址|群组|频道)\s*[:：]"
+    r"|^(?:余额|会员)\s*\|"
+    r"|版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入"
 )
 JUNK = INFO_NODE_RE
+
+# 连通性探测直连规则 (Apple / 微软 / 小米 / 华为，排除 Google 防止大陆安卓断网)
+CAPTIVE_PORTAL_RULES = [
+    "DOMAIN-SUFFIX,captive.apple.com,DIRECT",
+    "DOMAIN-SUFFIX,msftconnecttest.com,DIRECT",
+    "DOMAIN-SUFFIX,connect.rom.miui.com,DIRECT",
+    "DOMAIN-SUFFIX,connectivitycheck.platform.hicloud.com,DIRECT",
+]
+
+CAPTIVE_PORTAL_DOMAINS = [
+    "captive.apple.com",
+    "+.captive.apple.com",
+    "msftconnecttest.com",
+    "+.msftconnecttest.com",
+    "connect.rom.miui.com",
+    "+.connect.rom.miui.com",
+    "connectivitycheck.platform.hicloud.com",
+    "+.connectivitycheck.platform.hicloud.com",
+]
 
 # 基础测速参数默认值 (依据 PERFORMANCE.md 优化准则)
 DEFAULT_TEST_URL = "https://www.gstatic.com/generate_204"
@@ -666,14 +687,14 @@ def build_yaml(groups: list[dict], providers: dict, pre_game: list[str], subboos
     w = out.write
 
     w("# ==========================================================================\n")
-    w("# SubBoost 规则体系 · mihomo 覆写版 (YAML rules+: 备用双轨)\n")
+    w("# SubBoost 规则体系 · mihomo 覆写版 (YAML rules: 双轨覆写)\n")
     w("# 由 scripts/gen_override.py 自动生成，请勿手动编辑。\n")
     w("# 核心工程适配说明：\n")
     w("#   · 规则集走 jsdelivr 镜像，全量带 proxy: 节点选择 杜绝静默失败\n")
     w("#   · 节点采用 include-all + exclude-filter 动态过滤\n")
     w("#   · 补全 6 核心地区 url-test (lazy: true, tolerance: 50) 与 1 其他国家 select\n")
     w("#   · 地区代码采用 NB 非字母边界正则，彻底解决 US01/HK_02 漏判\n")
-    w("#   · rules+: 严格遵循追加语义，保护前置内网直连规则\n")
+    w("#   · rules: 严格整段替换订阅自带旧规则，彻底避免 MATCH 截断死锁\n")
     w("# ==========================================================================\n\n")
 
     w("sniffer:\n")
@@ -694,9 +715,9 @@ def build_yaml(groups: list[dict], providers: dict, pre_game: list[str], subboos
         if g.get("include-all"):
             w("    include-all: true\n")
         if "filter" in g:
-            w(f"    filter: {g['filter']}\n")
+            w(f"    filter: {q(g['filter'])}\n")
         if "exclude-filter" in g:
-            w(f"    exclude-filter: {g['exclude-filter']}\n")
+            w(f"    exclude-filter: {q(g['exclude-filter'])}\n")
         if "url" in g:
             w(f"    url: {g['url']}\n")
         if "interval" in g:
@@ -721,7 +742,10 @@ def build_yaml(groups: list[dict], providers: dict, pre_game: list[str], subboos
         w(f"    proxy: {q(p['proxy'])}\n")
     w("\n")
 
-    w("rules+:\n")
+    w("rules:\n")
+    # 插入连通性探测直连规则，解决公共网络/校园网/酒店 Captive Portal 弹窗失败 (排除 Google 防止安卓断网)
+    for r in CAPTIVE_PORTAL_RULES:
+        w(f"- {r}\n")
     # 插入前置游戏精细化直连/代理区块与全球业务规则链
     for r in pre_game:
         w(f"- {r}\n")
@@ -756,13 +780,13 @@ def build_all_in_one_js(
     if work_config and isinstance(work_config, dict):
         enable_work = work_config.get("enableWorkRules", True)
         for k, v in (work_config.get("workNameserverPolicy") or {}).items():
-            injected_policy_lines.append(f'    "{k}": "{v}",\n')
+            injected_policy_lines.append(f"    {json.dumps(k, ensure_ascii=False)}: {json.dumps(v, ensure_ascii=False)},\n")
         for d in (work_config.get("workDomains") or []):
-            injected_domains_lines.append(f'    "{d}",\n')
+            injected_domains_lines.append(f"    {json.dumps(d, ensure_ascii=False)},\n")
         for c in (work_config.get("workIpCidrs") or []):
-            injected_cidrs_lines.append(f'    "{c}",\n')
+            injected_cidrs_lines.append(f"    {json.dumps(c, ensure_ascii=False)},\n")
         for p in (work_config.get("workProcesses") or []):
-            injected_processes_lines.append(f'    "{p}",\n')
+            injected_processes_lines.append(f"    {json.dumps(p, ensure_ascii=False)},\n")
 
     w("/**\n")
     w(" * ==============================================================================\n")
@@ -861,6 +885,37 @@ def build_all_in_one_js(
 
     # 3. 核心 main(config) 流水线
     w("""// ============================================================================
+// 【静态过滤规则与倍率提取引擎】(模块级单例，杜绝遍历高频分配 GC 压力)
+// ============================================================================
+// 垃圾与非代理信息节点正则（精确匹配冒号、链接、日期或明确非代理词，杜绝误杀「官网专线」「优质套餐」等正常节点）
+const TRASH_REGEX = /(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入/i;
+
+// 精准倍率识别正则表 (消除对线路代号如 IEPL X2 与流量容量如 50G 的误杀)
+const MULTIPLIER_PATTERNS = [
+  // 1. 显式前置关键字 (倍率: 1.5, 流量倍率: 2.0, ratio: 1.5)
+  /(?:倍率|倍数|ratio)\\s*[:：=]?\\s*(\\d+(?:\\.\\d+)?)/i,
+  // 2. 流量后紧跟倍率 (流量: 1.5x, traffic: 2倍，必须带 x 或 倍，严禁单独数字)
+  /(?:流量|traffic)\\s*[:：=]?\\s*(\\d+(?:\\.\\d+)?)\\s*[xX倍]/i,
+  // 3. 数字紧跟 x/X 或 倍 (如 1.5x, 2X, 3倍，前驱非数字非点，后继非字母数字)
+  /(?:^|[^\\d.])(\\d+(?:\\.\\d+)?)\\s*(?:[xX]|倍)(?=$|[^\\w])/i,
+  // 4. 定界符括起的前置 x 倍率 (如 [x2], | x2, (x1.5))
+  /(?:[|\\[(])\\s*[xX]\\s*(\\d+(?:\\.\\d+)?)(?=$|[\\s\\])|])/i,
+  // 5. 显式带小数点的 x 倍率 (如 x1.5, x2.0)
+  /(?:^|\\s)[xX]\\s*(\\d+\\.\\d+)(?=$|[\\s\\])|])/i,
+];
+
+function getMultiplier(name) {
+  if (typeof name !== "string") return null;
+  for (const regex of MULTIPLIER_PATTERNS) {
+    const match = name.match(regex);
+    if (!match) continue;
+    const val = Number(match[1]);
+    if (Number.isFinite(val) && val >= 0) return val;
+  }
+  return null;
+}
+
+// ============================================================================
 // 【主入口函数】(Clash Party / Flclash / bettbox 统一运行时执行)
 // ============================================================================
 function main(config) {
@@ -885,36 +940,14 @@ function main(config) {
   // ==========================================================================
   // 第一步：节点清洗引擎 (按 CONFIG 动态执行)
   // ==========================================================================
-  const trashRegex = /剩余流量|到期|过期|官网|套餐|永久地址|Telegram群组|如遇节点失效|欢迎加入|Traffic|Expire/i;
-
-  function getMultiplier(name) {
-    if (typeof name !== "string") return null;
-    const patterns = [
-      /(?:^|[^\\w])(\\d+(?:\\.\\d+)?)\\s*[xX](?=$|[^\\w])/,
-      /(?:^|[^\\w-])[xX]\\s*(\\d+(?:\\.\\d+)?)(?=$|[^\\w])/,
-      /(?:^|[^\\w])(\\d+(?:\\.\\d+)?)\\s*倍(?=$|[^\\w])/,
-      /倍率\\s*[:：=]?\\s*(\\d+(?:\\.\\d+)?)/i,
-      /(?:^|[^\\w])(\\d+(?:\\.\\d+)?)\\s*[xX]\\s*(?:流量|traffic)\\b/i,
-      /(?:^|[^\\w])(\\d+(?:\\.\\d+)?)\\s*倍\\s*(?:流量|traffic)\\b/i,
-      /(?:流量|traffic)\\s*[:：=]?\\s*(\\d+(?:\\.\\d+)?)\\s*[xX倍]?/i,
-      /(?:^|[^\\w-])[xX]\\s*(\\d+(?:\\.\\d+)?)\\s*(?:流量|traffic)\\b/i,
-    ];
-    for (const regex of patterns) {
-      const match = name.match(regex);
-      if (!match) continue;
-      const val = Number(match[1]);
-      if (Number.isFinite(val) && val >= 0) return val;
-    }
-    return null;
-  }
-
   const removedNames = new Set();
   if (CONFIG.cleanTrashNodes || CONFIG.cleanHighMultiplier) {
-    config.proxies = config.proxies.filter(proxy => {
+    const originalProxies = config.proxies;
+    const filteredProxies = originalProxies.filter(proxy => {
       if (!proxy || typeof proxy.name !== "string") return true;
 
       // 规则 A: 命中垃圾公告关键字，移除
-      if (CONFIG.cleanTrashNodes && trashRegex.test(proxy.name)) {
+      if (CONFIG.cleanTrashNodes && TRASH_REGEX.test(proxy.name)) {
         removedNames.add(proxy.name);
         return false;
       }
@@ -930,6 +963,13 @@ function main(config) {
 
       return true;
     });
+
+    // 防御性安全底线 (Never break userspace): 若所有节点均被倍率过滤剔除，降级回退保留原始有效节点
+    if (filteredProxies.length === 0 && originalProxies.length > 0) {
+      config.proxies = originalProxies.filter(p => !p || typeof p.name !== "string" || !TRASH_REGEX.test(p.name));
+    } else {
+      config.proxies = filteredProxies;
+    }
   }
 
   // ==========================================================================
@@ -938,13 +978,21 @@ function main(config) {
   if (CONFIG.enableDnsOverride) {
     delete config.dns;
 
-    // Fake-IP 绕过列表
+    // Fake-IP 绕过列表 (含常见连通性探测域名放行，排除 Google 防止安卓断网)
     const fakeIpFilters = [
       "+.lan",
       "+.local",
       "time.*.com",
       "ntp.*.com",
       "+.market.xiaomi.com",
+      "captive.apple.com",
+      "+.captive.apple.com",
+      "msftconnecttest.com",
+      "+.msftconnecttest.com",
+      "connect.rom.miui.com",
+      "+.connect.rom.miui.com",
+      "connectivitycheck.platform.hicloud.com",
+      "+.connectivitycheck.platform.hicloud.com",
     ];
 
     // Steam 握手与下载域名直解真实国内 IP，保持 IPCountry=CN
@@ -966,21 +1014,8 @@ function main(config) {
       }
     }
 
-    const fallbackFilterDomains = [
-      "+.google.com",
-      "+.facebook.com",
-      "+.youtube.com",
-    ];
-    if (CONFIG.enableWorkRules && Array.isArray(CONFIG.workDomains)) {
-      for (const d of CONFIG.workDomains) {
-        if (!d) continue;
-        const pattern = d.startsWith("+.") || d.startsWith("*.") ? d : "+." + d;
-        if (!fallbackFilterDomains.includes(pattern)) fallbackFilterDomains.push(pattern);
-      }
-    }
-
     const nameserverPolicy = {
-      "+.captive.apple.com,+.msftconnecttest.com,+.connect.rom.miui.com,+.connectivitycheck.gstatic.com,+.connectivitycheck.platform.hicloud.com": [
+      "+.captive.apple.com,+.msftconnecttest.com,+.connect.rom.miui.com,+.connectivitycheck.platform.hicloud.com": [
         "119.29.29.29",
         "223.5.5.5",
       ],
@@ -1007,18 +1042,11 @@ function main(config) {
         "https://dns.alidns.com/dns-query",
       ],
       "proxy-server-nameserver": [
-        "tls://223.5.5.5",
-        "tls://223.6.6.6",
+        "https://223.5.5.5/dns-query",
+        "223.5.5.5",
         "119.29.29.29",
       ],
       "direct-nameserver": ["system"],
-      fallback: [],
-      "fallback-filter": {
-        geoip: true,
-        "geoip-code": "CN",
-        ipcidr: ["240.0.0.0/4", "0.0.0.0/32"],
-        domain: fallbackFilterDomains,
-      },
       "nameserver-policy": nameserverPolicy,
     };
   }
@@ -1081,6 +1109,14 @@ function main(config) {
   // ==========================================================================
   const rules = [];
 
+  // 0. 连通性探测直连规则 (Apple / 微软 / 小米 / 华为，排除 Google 防止大陆安卓断网)
+  rules.push(
+    "DOMAIN-SUFFIX,captive.apple.com,DIRECT",
+    "DOMAIN-SUFFIX,msftconnecttest.com,DIRECT",
+    "DOMAIN-SUFFIX,connect.rom.miui.com,DIRECT",
+    "DOMAIN-SUFFIX,connectivitycheck.platform.hicloud.com,DIRECT"
+  );
+
   // 1. 局域网私有网段直连
   if (CONFIG.enableLanDirect) {
     rules.push(
@@ -1105,7 +1141,8 @@ function main(config) {
     if (Array.isArray(CONFIG.workIpCidrs)) {
       for (const ip of CONFIG.workIpCidrs) {
         if (!ip) continue;
-        rules.push("IP-CIDR," + ip + ",DIRECT");
+        const ruleType = ip.includes(":") ? "IP-CIDR6" : "IP-CIDR";
+        rules.push(ruleType + "," + ip + ",DIRECT,no-resolve");
       }
     }
     if (Array.isArray(CONFIG.workProcesses)) {
@@ -1142,8 +1179,8 @@ if (typeof module !== "undefined" && module.exports) {
 
 def self_check_yaml(yaml_text: str, expected_provider_count: int = None) -> None:
     """自动化校验生成的 YAML 覆写配置。"""
-    if not re.search(r"^rules\+:\s*$", yaml_text, re.M):
-        raise ValueError("【严重错误】未找到 'rules+:' 追加声明！严禁生成整段覆盖的 rules:")
+    if not re.search(r"^rules:\s*$", yaml_text, re.M):
+        raise ValueError("【严重错误】未找到 'rules:' 声明！严禁遗漏整段覆盖的 rules:")
     if "category-games-cn" not in yaml_text:
         raise ValueError("【严重错误】未找到 'category-games-cn' 游戏前置直连规则！")
     if r"(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)" not in yaml_text:
@@ -1154,8 +1191,8 @@ def self_check_yaml(yaml_text: str, expected_provider_count: int = None) -> None
         if f'name: "{reg}"' not in yaml_text and f'name: {reg}' not in yaml_text:
             raise ValueError(f"【严重错误】缺少地区策略组: {reg}")
 
-    rules_block = yaml_text[yaml_text.find("\nrules+:") :]
-    providers_block = yaml_text[yaml_text.find("\nrule-providers:") : yaml_text.find("\nrules+:")]
+    rules_block = yaml_text[yaml_text.find("\nrules:") :]
+    providers_block = yaml_text[yaml_text.find("\nrule-providers:") : yaml_text.find("\nrules:")]
     rulesets = re.findall(r"^\s*-\s+RULE-SET,([^,]+),", rules_block, re.M)
     for rset in rulesets:
         if f"\n  {rset}:" not in providers_block:

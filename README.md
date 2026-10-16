@@ -43,9 +43,9 @@
 
 | 预设档位 | 策略组数量 | 规则集数量 | 展开规则条数 | 内存开销 | 推荐适用设备与场景 |
 |---|:---:|:---:|:---:|:---:|---|
-| **Minimal (极简版)** | 16 个 | 12 个 | 55 条 | 约 25 MB | **移动端 / 电视盒子**：Android、iOS、Bettbox、智能电视，极致省电、轻量流畅 |
-| **Standard (标准版)** | 23 个 | 24 个 | 67 条 | 约 45 MB | **日常黄金主流推荐**：主流流媒体（YouTube/Netflix/Disney+）、Google、微软、AI服务 |
-| **Full (全量版)** | 41 个 | 94 个 | 137 条 | 约 75 MB | **桌面极客 / 软路由**：Windows、macOS、Linux，全域流媒体、多地区细粒度分流与游戏加速 |
+| **Minimal (极简版)** | 16 个 | 12 个 | 59 条 | 约 25 MB | **移动端 / 电视盒子**：Android、iOS、Bettbox、智能电视，极致省电、轻量流畅 |
+| **Standard (标准版)** | 23 个 | 24 个 | 71 条 | 约 45 MB | **日常黄金主流推荐**：主流流媒体（YouTube/Netflix/Disney+）、Google、微软、AI服务 |
+| **Full (全量版)** | 41 个 | 94 个 | 141 条 | 约 75 MB | **桌面极客 / 软路由**：Windows、macOS、Linux，全域流媒体、多地区细粒度分流与游戏加速 |
 
 ---
 
@@ -129,7 +129,7 @@ const CONFIG = {
 │   ├── private_work.example.json      [公开模板] 脱敏个人内网配置范例
 │   └── private_work.json              [本地私有] 个人工作内网真实配置 (受 .gitignore 严密隔离)
 ├── docs/
-│   ├── PROJECT.md                     项目权威技术架构、合并语义与跨端适配指南
+│   ├── PROJECT.md                     项目技术架构、合并语义与跨端适配指南
 │   └── PERFORMANCE.md                 深度网络性能调优与冷启动基准测试报告
 ├── override/
 │   ├── js/                            [本地私有产物] 已注入真实内网配置 (整目录 gitignore 保护)

@@ -1,8 +1,6 @@
 # SubBoost 规则体系 · 性能与网络深度分析报告 (PERFORMANCE.md)
 
-> **首席架构师审阅意见 (Linus Torvalds)**
-> *"Premature optimization is the root of all evil. But ignoring architectural bottlenecks is sheer stupidity."*
-> 本报告深度剖析本项目在大陆网络环境下使用全球代理的核心性能指标、已落地的工业级调优策略及实测收益。
+> 本报告剖析本项目在大陆网络环境下使用全球代理的核心性能指标、调优策略及实测收益。
 > 最后更新：2026-10-15
 
 ---
@@ -14,7 +12,7 @@
 | 评估维度 | 指标参数 | 性能等级 | 架构优化收益与落地状态 |
 |---|---|---|---|
 | **策略组总数 (proxy-groups)** | 41 个 | 🟢 优良 | 全面引入 `lazy: true`、`tolerance: 50`，消除并发测速风暴 |
-| **规则条目 (rules)** | 132 条 | 🟢 卓越 | 拓扑保序排列，内网与高频直连秒级命中 |
+| **规则条目 (rules)** | 141 条 | 🟢 卓越 | 拓扑保序排列，内网与高频直连秒级命中 |
 | **远程规则集 (rule-providers)** | 94 个 HTTP MRS | 🟢 卓越 | 默认 `DIRECT` + `fastly.jsdelivr.net` 高可用 CDN，彻底消除冷启动代理死锁与 EOF 异常 |
 | **规则展开内存条目总数** | 约 17.2 万条 | 🟢 优良 | 使用 `.mrs` 二进制 Radix Tree 结构，内存常驻仅 ~70MB |
 | **内核冷启动测试耗时** | 26ms ~ 35ms | 🟢 极速 | `mihomo-test.exe -t` 实测毫秒级解析通过 |

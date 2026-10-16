@@ -7,7 +7,7 @@ Mihomo-Party 客户端覆写合并链模拟与断言验证器 (merge_sim.py)
 在完全不起本地内核的情况下，秒级模拟 Clash Party / Sparkle 的底层 app.asar
 覆写合并算法（applyOverrides），对输出的 YAML 产物执行 8 项铁律断言检查。
 
-【客户端合并核心机制 (app.asar 权威依据)】
+【客户端合并核心机制 (基于 app.asar 逆向分析)】
 1. ext: js -> runOverrideScript(profile, content):
    main(config) 函数执行，整对象替换。
 2. ext: yaml -> deepMerge(profile, patch, isOverride=true):

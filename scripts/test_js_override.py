@@ -30,6 +30,10 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
 
+# 导入生成器中定义的连通性探测常量 (Single Source of Truth)
+sys.path.insert(0, str(REPO_ROOT))
+from scripts.gen_override import CAPTIVE_PORTAL_DOMAINS, CAPTIVE_PORTAL_RULES
+
 
 def run_node_test(test_script: str) -> dict:
     """在 Node.js 中执行测试脚本并返回 JSON 解析结果。"""
@@ -68,9 +72,23 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
         {{ name: "🇺🇸 美国 01", type: "ss", server: "1.1.1.1", port: 443 }},
         {{ name: "🇭🇰 香港 02 | 1x", type: "ss", server: "1.1.1.2", port: 443 }},
         {{ name: "🇯🇵 日本 IEPL-X2", type: "ss", server: "1.1.1.3", port: 443 }}, // 线路代号，必须保留
+        {{ name: "🇯🇵 日本 IEPL X2", type: "ss", server: "1.1.1.7", port: 443 }},  // 空格线路代号，严禁误杀
+        {{ name: "🇺🇸 美国 Server X1", type: "ss", server: "1.1.1.8", port: 443 }}, // 服务器代号，严禁误杀
+        {{ name: "🇭🇰 香港 01 - 流量: 50G", type: "ss", server: "1.1.1.9", port: 443 }}, // 流量额度非倍率，严禁误杀
         {{ name: "🇸🇬 狮城 04 [2x]", type: "ss", server: "1.1.1.4", port: 443 }},  // 2倍率，必须剔除
+        {{ name: "🇭🇰 香港 03 [x2]", type: "ss", server: "1.1.1.10", port: 443 }}, // 前置x倍率，必须剔除
         {{ name: "到期时间: 2026-12-31", type: "ss", server: "1.1.1.5", port: 443 }}, // 垃圾节点，必须剔除
         {{ name: "剩余流量: 500G", type: "ss", server: "1.1.1.6", port: 443 }},       // 垃圾节点，必须剔除
+        {{ name: "🇭🇰 香港 [官网专线]", type: "ss", server: "1.1.1.11", port: 443 }}, // 包含官网字样但为正常节点，严禁误杀
+        {{ name: "🇸🇬 优质套餐专线", type: "ss", server: "1.1.1.12", port: 443 }}, // 包含套餐字样但为正常节点，严禁误杀
+        {{ name: "🇯🇵 备用线路", type: "ss", server: "1.1.1.13", port: 443 }},     // 正常节点，严禁误杀
+        {{ name: "官网: https://sub.com", type: "ss", server: "1.1.1.14", port: 443 }}, // 纯信息节点，必须剔除
+        {{ name: "剩余流量: 50G", type: "ss", server: "1.1.1.15", port: 443 }},       // 纯信息节点，必须剔除
+        {{ name: "到期: 2026-12-31", type: "ss", server: "1.1.1.16", port: 443 }},   // 纯信息节点，必须剔除
+        {{ name: "到期：2026-12-31", type: "ss", server: "1.1.1.17", port: 443 }},   // 中文冒号信息节点，必须剔除
+        {{ name: "套餐: 500G", type: "ss", server: "1.1.1.18", port: 443 }},         // 套餐信息节点，必须剔除
+        {{ name: "套餐：年付VIP", type: "ss", server: "1.1.1.19", port: 443 }},      // 套餐中文冒号节点，必须剔除
+        {{ name: "过期: 2026-12-31", type: "ss", server: "1.1.1.20", port: 443 }},   // 过期信息节点，必须剔除
       ],
       "proxy-groups": [
         {{
@@ -88,13 +106,13 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
       }}
     }};
 
-    // 2. 模拟配置个性化工作地址
+    // 2. 模拟配置个性化工作地址 (含 IPv4 与 IPv6 私有网段)
     CONFIG.cleanTrashNodes = true;
     CONFIG.cleanHighMultiplier = true;
     CONFIG.maxMultiplier = 1.0;
     CONFIG.enableWorkRules = true;
     CONFIG.workDomains = ["oa.corp.com", "+.corp.internal"];
-    CONFIG.workIpCidrs = ["10.20.0.0/16", "172.16.88.1/32"];
+    CONFIG.workIpCidrs = ["10.20.0.0/16", "fd00::/8"];
     CONFIG.workProcesses = ["corp-vpn.exe"];
     CONFIG.workNameserverPolicy = {{
       "+.corp.internal": "10.0.0.53"
@@ -139,8 +157,9 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
       hasDns: !!output.dns,
       dnsFakeIpFilters: output.dns ? output.dns["fake-ip-filter"] : [],
       dnsPolicy: output.dns ? output.dns["nameserver-policy"] : {{}},
+      proxyServerNameserver: output.dns ? output.dns["proxy-server-nameserver"] : [],
       rulesCount: output.rules.length,
-      rulesTop: output.rules.slice(0, 15),
+      rulesTop: output.rules.slice(0, 20),
       rulesBottom: output.rules.slice(-3),
       emptySafe: Array.isArray(emptyOutput["proxy-groups"]) && Array.isArray(nullOutput.rules),
       groupNames: output["proxy-groups"].map(g => g.name),
@@ -152,14 +171,28 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     res = run_node_test(test_driver)
     remaining = res["remainingProxies"]
 
-    # 断言 1: 垃圾节点过滤
+    # 断言 1: 垃圾与信息节点过滤（冒号/到期/流量）
     assert "到期时间: 2026-12-31" not in remaining, f"✘ [{tier}] 垃圾公告节点未被过滤！"
     assert "剩余流量: 500G" not in remaining, f"✘ [{tier}] 剩余流量信息节点未被过滤！"
+    assert "官网: https://sub.com" not in remaining, f"✘ [{tier}] 官网信息节点未被过滤！"
+    assert "剩余流量: 50G" not in remaining, f"✘ [{tier}] 剩余流量信息节点未被过滤！"
+    assert "到期: 2026-12-31" not in remaining, f"✘ [{tier}] '到期: 2026-12-31' 信息节点未被过滤！"
+    assert "到期：2026-12-31" not in remaining, f"✘ [{tier}] '到期：2026-12-31' 信息节点未被过滤！"
+    assert "套餐: 500G" not in remaining, f"✘ [{tier}] '套餐: 500G' 信息节点未被过滤！"
+    assert "套餐：年付VIP" not in remaining, f"✘ [{tier}] '套餐：年付VIP' 信息节点未被过滤！"
+    assert "过期: 2026-12-31" not in remaining, f"✘ [{tier}] '过期: 2026-12-31' 信息节点未被过滤！"
 
-    # 断言 2: 倍率过滤与保留
+    # 断言 2: 倍率过滤与精准不误杀
     assert "🇸🇬 狮城 04 [2x]" not in remaining, f"✘ [{tier}] 2x 高倍率节点未被过滤！"
+    assert "🇭🇰 香港 03 [x2]" not in remaining, f"✘ [{tier}] [x2] 高倍率节点未被过滤！"
     assert "🇺🇸 美国 01" in remaining, f"✘ [{tier}] 普通节点误伤！"
     assert "🇯🇵 日本 IEPL-X2" in remaining, f"✘ [{tier}] IEPL-X2 线路代号被误伤过滤！"
+    assert "🇯🇵 日本 IEPL X2" in remaining, f"✘ [{tier}] IEPL X2 空格线路代号被误杀！"
+    assert "🇺🇸 美国 Server X1" in remaining, f"✘ [{tier}] Server X1 服务器代号被误杀！"
+    assert "🇭🇰 香港 01 - 流量: 50G" in remaining, f"✘ [{tier}] '流量: 50G' 流量额度被误杀为50倍率！"
+    assert "🇭🇰 香港 [官网专线]" in remaining, f"✘ [{tier}] '[官网专线]' 正常节点被误杀！"
+    assert "🇸🇬 优质套餐专线" in remaining, f"✘ [{tier}] '优质套餐专线' 正常节点被误杀！"
+    assert "🇯🇵 备用线路" in remaining, f"✘ [{tier}] '备用线路' 正常节点被误杀！"
 
     # 断言 3: 策略组数量核验
     assert res["groupsCount"] == exp_groups, f"✘ [{tier}] 策略组数量预期 {exp_groups}，实测 {res['groupsCount']}"
@@ -167,20 +200,36 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     # 断言 4: 规则集数量核验
     assert res["providersCount"] == exp_providers, f"✘ [{tier}] 规则集数量预期 {exp_providers}，实测 {res['providersCount']}"
 
-    # 断言 5: 级联清理无死链
+    # 断言 5: 级联清理无死链与节点池清洗纯净度
     test_group_proxies = res["testGroupProxies"]
     assert "🇸🇬 狮城 04 [2x]" not in test_group_proxies, f"✘ [{tier}] 策略组中残留已剔除的高倍率节点！"
     assert "剩余流量: 500G" not in test_group_proxies, f"✘ [{tier}] 策略组中残留已剔除的垃圾节点！"
+    assert "到期: 2026-12-31" not in remaining
+    assert "到期时间: 2026-12-31" not in remaining
+    assert "剩余流量: 500G" not in remaining
+    assert "官网: https://sub.com" not in remaining
+    assert "剩余流量: 50G" not in remaining
+    assert "🇸🇬 狮城 04 [2x]" not in remaining
 
-    # 断言 6: DNS 与 Fake-IP 白名单
+    # 断言 6: DNS 与 Fake-IP 白名单（含连通性探测放行与 Google 排除）
     fake_filters = res["dnsFakeIpFilters"]
     assert "+.corp.internal" in fake_filters, f"✘ [{tier}] 工作域名未自动并入 Fake-IP 放行列表！"
     assert res["dnsPolicy"].get("+.corp.internal") == "10.0.0.53", f"✘ [{tier}] 工作内网专有 DNS 策略未正确注入！"
+    for pd in CAPTIVE_PORTAL_DOMAINS:
+        assert pd in fake_filters, f"✘ [{tier}] 连通性探测域名 {pd} 未在 Fake-IP 放行列表中！"
+    assert not any("connectivitycheck.gstatic.com" in f for f in fake_filters), f"✘ [{tier}] Google gstatic 域名未被排除在 Fake-IP 绕过列表外！"
+    assert not any("connectivitycheck.gstatic.com" in k for k in res["dnsPolicy"].keys()), f"✘ [{tier}] Google gstatic 域名未被排除在 nameserver-policy 外！"
+    assert "https://223.5.5.5/dns-query" in res["proxyServerNameserver"], f"✘ [{tier}] proxy-server-nameserver 缺少 DoH https://223.5.5.5/dns-query！"
 
-    # 断言 7: 规则链保序
+    # 断言 7: 规则链保序与连通性探测直连 (First-Match-Win)
     rules_top = res["rulesTop"]
     rules_bottom = res["rulesBottom"]
-    assert any("10.0.0.0/8" in r for r in rules_top), f"✘ [{tier}] 规则链最前端缺少局域网私有网段直连！"
+    for r in CAPTIVE_PORTAL_RULES:
+        assert r in rules_top, f"✘ [{tier}] 缺少连通性直连规则: {r}！"
+    assert not any("connectivitycheck.gstatic.com" in r for r in res["allRules"]), f"✘ [{tier}] Google gstatic 连通性探测域名未被排除在直连规则外！"
+    assert any("10.0.0.0/8" in r and "no-resolve" in r for r in rules_top), f"✘ [{tier}] 规则链最前端缺少带 no-resolve 的局域网私网直连！"
+    assert any("IP-CIDR,10.20.0.0/16,DIRECT,no-resolve" == r for r in rules_top), f"✘ [{tier}] IPv4 工作内网网段缺少 no-resolve 或格式错误！"
+    assert any("IP-CIDR6,fd00::/8,DIRECT,no-resolve" == r for r in rules_top), f"✘ [{tier}] IPv6 工作内网网段缺少 IP-CIDR6 识别或 no-resolve！"
     assert any("corp.internal" in r for r in rules_top), f"✘ [{tier}] 规则链缺少前置工作域名直连！"
     assert any("corp-vpn.exe" in r for r in rules_top), f"✘ [{tier}] 规则链缺少前置工作进程直连！"
     assert rules_bottom[-1].startswith("MATCH,"), f"✘ [{tier}] 规则链末尾不是 MATCH 兜底！"

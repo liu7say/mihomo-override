@@ -17,10 +17,10 @@ if sys.platform == "win32":
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
-OVERRIDE_YAML = REPO_ROOT / "override" / "customSubBoost.full.yaml"
+OVERRIDE_YAML = REPO_ROOT / "override" / "yaml" / "customSubBoost.full.yaml"
 if not OVERRIDE_YAML.exists():
     for tier in ["standard", "minimal"]:
-        p = REPO_ROOT / "override" / f"customSubBoost.{tier}.yaml"
+        p = REPO_ROOT / "override" / "yaml" / f"customSubBoost.{tier}.yaml"
         if p.exists():
             OVERRIDE_YAML = p
             break

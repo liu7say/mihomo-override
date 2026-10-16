@@ -1,8 +1,6 @@
-# mihomo-override 项目权威技术文档 (PROJECT.md)
+# mihomo-override 技术架构与设计规范 (PROJECT.md)
 
-> **首席架构师审阅意见 (Linus Torvalds)**
-> *"Bad programmers worry about the code. Good programmers worry about data structures and their relationships."*
-> 本文档是本项目架构、规则机制、合并语义、多客户端兼容与测试工程的唯一权威依据。
+> 本文档记录本项目架构、规则机制、合并语义、多客户端兼容与测试工程的技术规范与设计细节。
 > 最后更新：2026-10-15
 
 ---
@@ -26,7 +24,7 @@
 |---|:---:|:---:|:---:|---|
 | **策略组总数 (proxy-groups)** | 16 个 | 23 个 | 41 个 | 节点选择、自动选择、手动切换、6 大核心地区、1 个其他国家与业务策略组 |
 | **规则集提供者 (rule-providers)** | 12 个 | 24 个 | 94 个 | 默认 `DIRECT` + `fastly.jsdelivr.net` 高可用 CDN，彻底消除冷启动死锁与 EOF 风险 |
-| **规则条目 (rules)** | 55 条 | 67 条 | 137 条 | 拓扑保序：私有内网/局域网 -> 工作专有直连 -> 游戏优化 -> 业务分流 -> MATCH 兜底 |
+| **规则条目 (rules)** | 59 条 | 71 条 | 141 条 | 拓扑保序：私有内网/局域网 -> 工作专有直连 -> 游戏优化 -> 业务分流 -> MATCH 兜底 |
 | **节点清洗效率** | 削减 50% ~ 70% | 削减 50% ~ 70% | 削减 50% ~ 70% | 自动过滤流量提示/官网广告节点，剔除 >1.0x 的高倍率节点，并保留 1x 与 IEPL 专线 |
 | **内核冷启动测试耗时** | ~15ms | ~22ms | ~35ms | 本地 `mihomo-test.exe -t` 实测，毫秒级通过语法与分流解析 |
 
@@ -68,7 +66,7 @@
 
 ---
 
-## 三、 客户端覆写合并底层机制 (app.asar 权威解密)
+## 三、 客户端覆写合并底层机制 (基于 app.asar 逆向解析)
 
 > 从 `Clash Party/resources/app.asar` 提取解出的底层源码逻辑。
 

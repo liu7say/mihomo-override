@@ -90,7 +90,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Auto.png",
     "type": "url-test",
     "include-all": true,
-    "exclude-filter": "^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\\s*[:：]|^(余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新",
+    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入",
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
@@ -101,7 +101,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available_1.png",
     "type": "select",
     "include-all": true,
-    "exclude-filter": "^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\\s*[:：]|^(余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新"
+    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入"
   },
   {
     "name": "广告拦截",
@@ -163,7 +163,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|United.?States|America",
-    "exclude-filter": "^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\\s*[:：]|^(余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|(?i)Australia|俄罗斯|Russia|Belarus|巴西|Brazil",
+    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入|(?i)Australia|俄罗斯|Russia|Belarus|巴西|Brazil",
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
@@ -175,7 +175,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)香港|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|Hong.?Kong|HKG",
-    "exclude-filter": "^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\\s*[:：]|^(余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新",
+    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入",
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
@@ -187,7 +187,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)日本|东京|大阪|川日|沪日|深日|泉日|埼玉|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|Japan|Tokyo|Osaka",
-    "exclude-filter": "^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\\s*[:：]|^(余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新",
+    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入",
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
@@ -199,7 +199,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)新加坡|狮城|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|Singapore",
-    "exclude-filter": "^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\\s*[:：]|^(余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新",
+    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入",
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
@@ -211,7 +211,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)台湾|台北|台中|新北|彰化|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|Taiwan|Taipei|Kaohsiung",
-    "exclude-filter": "^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\\s*[:：]|^(余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|(?i)Network|Software|Westward",
+    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入|(?i)Network|Software|Westward",
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
@@ -223,7 +223,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "type": "url-test",
     "include-all": true,
     "filter": "(?i)韩国|首尔|韓|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)|Korea|KOR",
-    "exclude-filter": "^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\\s*[:：]|^(余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新",
+    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入",
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
@@ -237,7 +237,7 @@ const SUBBOOST_PROXY_GROUPS = [
       "DIRECT"
     ],
     "include-all": true,
-    "exclude-filter": "^(剩余流量|剩余订阅流量|距离下次重置剩余|套餐到期|订阅到期|到期时间|过期时间)\\s*[:：]|^(余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|United.?States|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|香港|Hong.?Kong|HKG|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|日本|东京|大阪|川日|沪日|深日|泉日|埼玉|Japan|Tokyo|Osaka|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|新加坡|狮城|Singapore|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|台湾|台北|台中|新北|彰化|Taiwan|Taipei|Kaohsiung|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|韩国|首尔|韓|Korea|KOR|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)"
+    "exclude-filter": "(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\\s*[:：]|^(?:流量|Traffic)\\s*[:：]|(?:官网|发布页|网址|群组|频道)\\s*[:：]|^(?:余额|会员)\\s*\\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入|(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|United.?States|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|香港|Hong.?Kong|HKG|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|日本|东京|大阪|川日|沪日|深日|泉日|埼玉|Japan|Tokyo|Osaka|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|新加坡|狮城|Singapore|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|台湾|台北|台中|新北|彰化|Taiwan|Taipei|Kaohsiung|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|韩国|首尔|韓|Korea|KOR|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)"
   },
   {
     "name": "非中国",
@@ -441,6 +441,37 @@ const SUBBOOST_RULES = [
 ];
 
 // ============================================================================
+// 【静态过滤规则与倍率提取引擎】(模块级单例，杜绝遍历高频分配 GC 压力)
+// ============================================================================
+// 垃圾与非代理信息节点正则（精确匹配冒号、链接、日期或明确非代理词，杜绝误杀「官网专线」「优质套餐」等正常节点）
+const TRASH_REGEX = /(?:剩余流量|剩余订阅流量|距离下次重置剩余|(?:套餐|订阅)?到期(?:时间)?|过期(?:时间)?|套餐|Expire)\s*[:：]|^(?:流量|Traffic)\s*[:：]|(?:官网|发布页|网址|群组|频道)\s*[:：]|^(?:余额|会员)\s*\||版本太旧|请更新|更新软件|去官网更新|非代理节点|请勿连接|如遇节点失效|永久发布页|欢迎加入/i;
+
+// 精准倍率识别正则表 (消除对线路代号如 IEPL X2 与流量容量如 50G 的误杀)
+const MULTIPLIER_PATTERNS = [
+  // 1. 显式前置关键字 (倍率: 1.5, 流量倍率: 2.0, ratio: 1.5)
+  /(?:倍率|倍数|ratio)\s*[:：=]?\s*(\d+(?:\.\d+)?)/i,
+  // 2. 流量后紧跟倍率 (流量: 1.5x, traffic: 2倍，必须带 x 或 倍，严禁单独数字)
+  /(?:流量|traffic)\s*[:：=]?\s*(\d+(?:\.\d+)?)\s*[xX倍]/i,
+  // 3. 数字紧跟 x/X 或 倍 (如 1.5x, 2X, 3倍，前驱非数字非点，后继非字母数字)
+  /(?:^|[^\d.])(\d+(?:\.\d+)?)\s*(?:[xX]|倍)(?=$|[^\w])/i,
+  // 4. 定界符括起的前置 x 倍率 (如 [x2], | x2, (x1.5))
+  /(?:[|\[(])\s*[xX]\s*(\d+(?:\.\d+)?)(?=$|[\s\])|])/i,
+  // 5. 显式带小数点的 x 倍率 (如 x1.5, x2.0)
+  /(?:^|\s)[xX]\s*(\d+\.\d+)(?=$|[\s\])|])/i,
+];
+
+function getMultiplier(name) {
+  if (typeof name !== "string") return null;
+  for (const regex of MULTIPLIER_PATTERNS) {
+    const match = name.match(regex);
+    if (!match) continue;
+    const val = Number(match[1]);
+    if (Number.isFinite(val) && val >= 0) return val;
+  }
+  return null;
+}
+
+// ============================================================================
 // 【主入口函数】(Clash Party / Flclash / bettbox 统一运行时执行)
 // ============================================================================
 function main(config) {
@@ -465,36 +496,14 @@ function main(config) {
   // ==========================================================================
   // 第一步：节点清洗引擎 (按 CONFIG 动态执行)
   // ==========================================================================
-  const trashRegex = /剩余流量|到期|过期|官网|套餐|永久地址|Telegram群组|如遇节点失效|欢迎加入|Traffic|Expire/i;
-
-  function getMultiplier(name) {
-    if (typeof name !== "string") return null;
-    const patterns = [
-      /(?:^|[^\w])(\d+(?:\.\d+)?)\s*[xX](?=$|[^\w])/,
-      /(?:^|[^\w-])[xX]\s*(\d+(?:\.\d+)?)(?=$|[^\w])/,
-      /(?:^|[^\w])(\d+(?:\.\d+)?)\s*倍(?=$|[^\w])/,
-      /倍率\s*[:：=]?\s*(\d+(?:\.\d+)?)/i,
-      /(?:^|[^\w])(\d+(?:\.\d+)?)\s*[xX]\s*(?:流量|traffic)\b/i,
-      /(?:^|[^\w])(\d+(?:\.\d+)?)\s*倍\s*(?:流量|traffic)\b/i,
-      /(?:流量|traffic)\s*[:：=]?\s*(\d+(?:\.\d+)?)\s*[xX倍]?/i,
-      /(?:^|[^\w-])[xX]\s*(\d+(?:\.\d+)?)\s*(?:流量|traffic)\b/i,
-    ];
-    for (const regex of patterns) {
-      const match = name.match(regex);
-      if (!match) continue;
-      const val = Number(match[1]);
-      if (Number.isFinite(val) && val >= 0) return val;
-    }
-    return null;
-  }
-
   const removedNames = new Set();
   if (CONFIG.cleanTrashNodes || CONFIG.cleanHighMultiplier) {
-    config.proxies = config.proxies.filter(proxy => {
+    const originalProxies = config.proxies;
+    const filteredProxies = originalProxies.filter(proxy => {
       if (!proxy || typeof proxy.name !== "string") return true;
 
       // 规则 A: 命中垃圾公告关键字，移除
-      if (CONFIG.cleanTrashNodes && trashRegex.test(proxy.name)) {
+      if (CONFIG.cleanTrashNodes && TRASH_REGEX.test(proxy.name)) {
         removedNames.add(proxy.name);
         return false;
       }
@@ -510,6 +519,13 @@ function main(config) {
 
       return true;
     });
+
+    // 防御性安全底线 (Never break userspace): 若所有节点均被倍率过滤剔除，降级回退保留原始有效节点
+    if (filteredProxies.length === 0 && originalProxies.length > 0) {
+      config.proxies = originalProxies.filter(p => !p || typeof p.name !== "string" || !TRASH_REGEX.test(p.name));
+    } else {
+      config.proxies = filteredProxies;
+    }
   }
 
   // ==========================================================================
@@ -518,13 +534,21 @@ function main(config) {
   if (CONFIG.enableDnsOverride) {
     delete config.dns;
 
-    // Fake-IP 绕过列表
+    // Fake-IP 绕过列表 (含常见连通性探测域名放行，排除 Google 防止安卓断网)
     const fakeIpFilters = [
       "+.lan",
       "+.local",
       "time.*.com",
       "ntp.*.com",
       "+.market.xiaomi.com",
+      "captive.apple.com",
+      "+.captive.apple.com",
+      "msftconnecttest.com",
+      "+.msftconnecttest.com",
+      "connect.rom.miui.com",
+      "+.connect.rom.miui.com",
+      "connectivitycheck.platform.hicloud.com",
+      "+.connectivitycheck.platform.hicloud.com",
     ];
 
     // Steam 握手与下载域名直解真实国内 IP，保持 IPCountry=CN
@@ -546,21 +570,8 @@ function main(config) {
       }
     }
 
-    const fallbackFilterDomains = [
-      "+.google.com",
-      "+.facebook.com",
-      "+.youtube.com",
-    ];
-    if (CONFIG.enableWorkRules && Array.isArray(CONFIG.workDomains)) {
-      for (const d of CONFIG.workDomains) {
-        if (!d) continue;
-        const pattern = d.startsWith("+.") || d.startsWith("*.") ? d : "+." + d;
-        if (!fallbackFilterDomains.includes(pattern)) fallbackFilterDomains.push(pattern);
-      }
-    }
-
     const nameserverPolicy = {
-      "+.captive.apple.com,+.msftconnecttest.com,+.connect.rom.miui.com,+.connectivitycheck.gstatic.com,+.connectivitycheck.platform.hicloud.com": [
+      "+.captive.apple.com,+.msftconnecttest.com,+.connect.rom.miui.com,+.connectivitycheck.platform.hicloud.com": [
         "119.29.29.29",
         "223.5.5.5",
       ],
@@ -587,18 +598,11 @@ function main(config) {
         "https://dns.alidns.com/dns-query",
       ],
       "proxy-server-nameserver": [
-        "tls://223.5.5.5",
-        "tls://223.6.6.6",
+        "https://223.5.5.5/dns-query",
+        "223.5.5.5",
         "119.29.29.29",
       ],
       "direct-nameserver": ["system"],
-      fallback: [],
-      "fallback-filter": {
-        geoip: true,
-        "geoip-code": "CN",
-        ipcidr: ["240.0.0.0/4", "0.0.0.0/32"],
-        domain: fallbackFilterDomains,
-      },
       "nameserver-policy": nameserverPolicy,
     };
   }
@@ -661,6 +665,14 @@ function main(config) {
   // ==========================================================================
   const rules = [];
 
+  // 0. 连通性探测直连规则 (Apple / 微软 / 小米 / 华为，排除 Google 防止大陆安卓断网)
+  rules.push(
+    "DOMAIN-SUFFIX,captive.apple.com,DIRECT",
+    "DOMAIN-SUFFIX,msftconnecttest.com,DIRECT",
+    "DOMAIN-SUFFIX,connect.rom.miui.com,DIRECT",
+    "DOMAIN-SUFFIX,connectivitycheck.platform.hicloud.com,DIRECT"
+  );
+
   // 1. 局域网私有网段直连
   if (CONFIG.enableLanDirect) {
     rules.push(
@@ -685,7 +697,8 @@ function main(config) {
     if (Array.isArray(CONFIG.workIpCidrs)) {
       for (const ip of CONFIG.workIpCidrs) {
         if (!ip) continue;
-        rules.push("IP-CIDR," + ip + ",DIRECT");
+        const ruleType = ip.includes(":") ? "IP-CIDR6" : "IP-CIDR";
+        rules.push(ruleType + "," + ip + ",DIRECT,no-resolve");
       }
     }
     if (Array.isArray(CONFIG.workProcesses)) {

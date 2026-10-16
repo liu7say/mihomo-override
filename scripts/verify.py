@@ -14,12 +14,21 @@ Mihomo 订阅与覆写内核合法性全量验证工具 (verify.py)
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import yaml
+
+# 修复 PyYAML 将形如 47245e18 的十六进制 short-id 序列化为浮点数科学计数法的缺陷
+def _represent_yaml_str(dumper, data):
+    if re.match(r"^(?:[0-9]+[eE][0-9]+|[0-9]+|0x[0-9a-fA-F]+|true|false|yes|no|null)$", data, re.I):
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="'")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+yaml.SafeDumper.add_representer(str, _represent_yaml_str)
 
 if sys.platform == "win32":
     if hasattr(sys.stdout, "reconfigure"):
@@ -144,18 +153,27 @@ def test_kernel_config(workdir: Path, config_data: dict, pid: str) -> tuple[bool
             pass
     workdir.mkdir(parents=True, exist_ok=True)
 
-    # 复制 geo 数据库资源
+    # 复制 geo 数据库资源 (优先 profile 目录，回退 ROOT/work 公共目录)
     for f in ("geoip.metadb", "geoip.dat", "geosite.dat", "country.mmdb", "ASN.mmdb"):
         src = ROOT / "work" / pid / f
+        if not src.exists():
+            src = ROOT / "work" / f
+        if not src.exists():
+            src = ROOT / f
         if src.exists():
             shutil.copy2(src, workdir / f)
 
-    # 复制 ruleset 规则集本地缓存
+    # 复制 ruleset 规则集本地缓存 (从公共缓存与本地多候选源合并复制，杜绝网络反复拉取)
     (workdir / "ruleset").mkdir(exist_ok=True)
     (workdir / "rule_providers").mkdir(exist_ok=True)
-    rs_src = ROOT / "work" / pid / "ruleset"
-    if rs_src.is_dir():
-        shutil.copytree(rs_src, workdir / "ruleset", dirs_exist_ok=True)
+    for cand in [
+        ROOT / "work" / "ruleset",
+        ROOT / "ruleset",
+        ROOT / "work" / pid / "ruleset",
+        REPO_ROOT / "ruleset",
+    ]:
+        if cand.is_dir():
+            shutil.copytree(cand, workdir / "ruleset", dirs_exist_ok=True)
 
     cfg = workdir / "config.yaml"
     cfg.write_text(
