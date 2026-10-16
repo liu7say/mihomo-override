@@ -47,7 +47,7 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
 # 当前脚本所在目录 (scripts/)
 HERE = Path(__file__).resolve().parent
 
-# 项目根目录 (self-mihomo-override/)
+# 项目根目录 (mihomo-override/)
 REPO_ROOT = HERE.parent
 
 # 上游模块源码文件（位于 reference/ 目录）

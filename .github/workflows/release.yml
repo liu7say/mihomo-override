@@ -62,7 +62,7 @@ jobs:
         run: |
           mkdir -p dist
           # 创建归档压缩包包含 example 与 yaml 目录
-          zip -r "dist/self-mihomo-override-${{ github.ref_name }}.zip" override/example override/yaml README.md LICENSE
+          zip -r "dist/mihomo-override-${{ github.ref_name }}.zip" override/example override/yaml README.md LICENSE
           # 复制独立的 6 个覆写文件到 dist 目录供单独下载
           cp override/example/*.js dist/
           cp override/yaml/*.yaml dist/
@@ -80,13 +80,13 @@ jobs:
           files: |
             dist/*
           body: |
-            ## 🚀 SubBoost All-in-One 覆写体系 ${{ github.ref_name }} 正式发布
+            ## SubBoost All-in-One 覆写体系 ${{ github.ref_name }} 正式发布
 
             适用于 **Clash Party**、**Flclash**、**bettbox** 及 **Sparkle** 等基于 Mihomo (Clash.Meta) 内核客户端的工业级全合一规则覆写与双轨配置体系。
 
             ---
 
-            ### 📦 本次发布资产 (Assets 包含)
+            ### 本次发布资产 (Assets 清单)
 
             #### 1. 独立 All-in-One JS 覆写模板 (推荐：复制即用，已脱敏)
             - **`customSubBoost.minimal.example.js`**：【极简版】16 策略组, 12 规则集, 适合轻量办公与省电
@@ -99,11 +99,11 @@ jobs:
             - **`customSubBoost.full.yaml`**：【全量版】双轨纯 YAML 覆写
 
             #### 3. 完整整合包
-            - **`self-mihomo-override-${{ github.ref_name }}.zip`**：包含上述全部模板与使用说明。
+            - **`mihomo-override-${{ github.ref_name }}.zip`**：包含上述全部模板与使用说明。
 
             ---
 
-            ### 🛠️ 核心架构调优特性
+            ### 核心架构调优特性
             - **零冷启动死锁**：规则集默认 `DIRECT` + `fastly.jsdelivr.net` 高可用 CDN 直连，彻底规避 `EOF` 异常；
             - **根除测速风暴**：引入 `lazy: true` 与 `tolerance: 50`，消除频繁后台测速对路由器连接表的侵蚀；
             - **节点清洗引擎**：客户端运行时自动过滤公告/流量垃圾节点，清洗高倍率吸血节点；

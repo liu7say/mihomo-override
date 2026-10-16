@@ -1,4 +1,4 @@
-# self-mihomo-override 项目权威技术文档 (PROJECT.md)
+# mihomo-override 项目权威技术文档 (PROJECT.md)
 
 > **首席架构师审阅意见 (Linus Torvalds)**
 > *"Bad programmers worry about the code. Good programmers worry about data structures and their relationships."*

@@ -1,15 +1,15 @@
 <div align="center">
 
-# SubBoost All-in-One Override for Mihomo
+# mihomo-override
 
 **Industrial-grade All-in-One Rule Override & Multi-tier Preset System**
 
 Engineered for **Clash Party**, **Flclash**, **bettbox**, and **Sparkle** clients powered by the **Mihomo (Clash.Meta)** kernel.
 
-[![Release](https://img.shields.io/github/v/release/liu7say/self-mihomo-override?style=flat-square&color=blue)](https://github.com/liu7say/self-mihomo-override/releases)
+[![Release](https://img.shields.io/github/v/release/liu7say/mihomo-override?style=flat-square&color=blue)](https://github.com/liu7say/mihomo-override/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![Kernel](https://img.shields.io/badge/Kernel-Mihomo%20Meta-orange?style=flat-square)](https://github.com/MetaCubeX/mihomo)
-[![CI Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/liu7say/self-mihomo-override/actions)
+[![CI Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/liu7say/mihomo-override/actions)
 
 [English](README_EN.md) | [简体中文](README.md)
 
@@ -17,15 +17,15 @@ Engineered for **Clash Party**, **Flclash**, **bettbox**, and **Sparkle** client
 
 ---
 
-## 📖 Introduction
+## Introduction
 
-**self-mihomo-override** is a high-performance, fully-contained rule override engineering solution tailored for the Mihomo (Clash.Meta) ecosystem.
+**mihomo-override** is a high-performance, fully-contained rule override engineering solution tailored for the Mihomo (Clash.Meta) ecosystem.
 
 Traditional rule overrides often suffer from fragile multi-file ordering dependencies, bootstrap deadlocks (TLS EOF errors) during cold startup, ping storms overwhelming router NAT tables, and UI lag on mobile devices caused by dozens of proxy groups. This project resolves these issues through a deterministic generator and defensive runtime execution across multiple hardware tiers.
 
 ---
 
-## ⚡ Key Advantages & Engineering Highlights
+## Key Advantages & Engineering Highlights
 
 | Feature | Problem in Traditional Overrides | Solution in This Project | Practical Benefit |
 |---|---|---|---|
@@ -37,7 +37,7 @@ Traditional rule overrides often suffer from fragile multi-file ordering depende
 
 ---
 
-## 🧭 Multi-tier Preset Decision Matrix
+## Multi-tier Preset Decision Matrix
 
 Select the preset that best matches your client hardware and routing requirements:
 
@@ -49,13 +49,13 @@ Select the preset that best matches your client hardware and routing requirement
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-Download pre-built sanitized overrides directly from the **[GitHub Releases](https://github.com/liu7say/self-mihomo-override/releases)** or copy directly from this repository.
+Download pre-built sanitized overrides directly from the **[GitHub Releases](https://github.com/liu7say/mihomo-override/releases)** or copy directly from this repository.
 
 ### Option A: Flclash / bettbox (Cross-platform Recommended)
 
-1. Navigate to client **Settings** → **Script / Override** editor;
+1. Navigate to client **Settings** -> **Script / Override** editor;
 2. Open the desired sanitized template (e.g., [override/example/customSubBoost.standard.example.js](override/example/customSubBoost.standard.example.js));
 3. **Select all and copy** the code into the script editor;
 4. *(Optional)* Adjust runtime parameters in the top `CONFIG` block (e.g., multiplier threshold);
@@ -82,7 +82,7 @@ If your client environment does not support JavaScript execution, mount the corr
 
 ---
 
-## ⚙️ Runtime Configuration (CONFIG)
+## Runtime Configuration (CONFIG)
 
 Every All-in-One JS override exposes a declarative configuration object at the top. Modify parameters directly inside the client without recompiling:
 
@@ -118,7 +118,7 @@ const CONFIG = {
 
 ---
 
-## 📂 Repository Layout
+## Repository Layout
 
 ```
 ├── .github/workflows/                 GitHub Actions CI/CD and release automation
@@ -129,24 +129,24 @@ const CONFIG = {
 │   ├── private_work.example.json      [Public Template] Sanitized intranet sample configuration
 │   └── private_work.json              [Local Private] Real intranet config (ignored by git)
 ├── docs/
-│   ├── PROJECT.md                     ★ Technical architecture, merge semantics, and compatibility
-│   └── PERFORMANCE.md                 ★ In-depth benchmark analysis on cold start and DNS latency
+│   ├── PROJECT.md                     Technical architecture, merge semantics, and compatibility
+│   └── PERFORMANCE.md                 In-depth benchmark analysis on cold start and DNS latency
 ├── override/
-│   ├── js/                            ★ [Local Private] Injected with personal intranet config
+│   ├── js/                            [Local Private] Injected with personal intranet config
 │   │   ├── customSubBoost.minimal.js
 │   │   ├── customSubBoost.standard.js
 │   │   └── customSubBoost.full.js
-│   ├── example/                       ★ [Public Templates] Sanitized overrides for open-source sharing
+│   ├── example/                       [Public Templates] Sanitized overrides for open-source sharing
 │   │   ├── customSubBoost.minimal.example.js
 │   │   ├── customSubBoost.standard.example.js
 │   │   └── customSubBoost.full.example.js
-│   └── yaml/                          ★ [Dual-track YAML] Pure YAML rule overrides for legacy clients
+│   └── yaml/                          [Dual-track YAML] Pure YAML rule overrides for legacy clients
 │       ├── customSubBoost.minimal.yaml
 │       ├── customSubBoost.standard.yaml
 │       └── customSubBoost.full.yaml
 └── scripts/
-    ├── gen_override.py                ★ Core generator: compiles 3-tier JS and YAML outputs
-    ├── test_js_override.py            ★ Automated test suite: 10 Node.js runtime assertions
+    ├── gen_override.py                Core generator: compiles 3-tier JS and YAML outputs
+    ├── test_js_override.py            Automated test suite: 10 Node.js runtime assertions
     ├── nest_check.py                  Directed acyclic graph (DAG) cycle and depth verification
     ├── verify.py                      Live kernel validation against real subscription profiles
     ├── check_icons.py                 Qure icon set existence and semantic fallback auditing
@@ -155,14 +155,14 @@ const CONFIG = {
 
 ---
 
-## 🛠️ Development & Building
+## Development & Building
 
 Built with Python 3.9+ with minimal external overhead:
 
 ```bash
 # 1. Clone repository and install dependencies
-git clone https://github.com/liu7say/self-mihomo-override.git
-cd self-mihomo-override
+git clone https://github.com/liu7say/mihomo-override.git
+cd mihomo-override
 pip install -r requirements.txt
 
 # 2. Compile all 3 preset tiers (outputs to js/, example/, and yaml/)
@@ -175,7 +175,7 @@ python scripts/nest_check.py          # DAG cycle check (0 cycles, max depth <= 
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 This project is built upon and inspired by the following outstanding open-source projects. We extend our sincere gratitude to their creators and maintainers:
 
@@ -190,6 +190,6 @@ Special thanks to all community contributors in the Mihomo (Clash.Meta) routing 
 
 ---
 
-## 📄 License
+## License
 
 This project is open-source under the [MIT License](LICENSE).

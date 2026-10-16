@@ -1,15 +1,15 @@
 <div align="center">
 
-# SubBoost All-in-One Override for Mihomo
+# mihomo-override
 
 **工业级全合一分流覆写体系与多预设档位解决方案**
 
 适用于 **Clash Party**、**Flclash**、**bettbox** 及 **Sparkle** 等基于 **Mihomo (Clash.Meta)** 内核的全平台客户端
 
-[![Release](https://img.shields.io/github/v/release/liu7say/self-mihomo-override?style=flat-square&color=blue)](https://github.com/liu7say/self-mihomo-override/releases)
+[![Release](https://img.shields.io/github/v/release/liu7say/mihomo-override?style=flat-square&color=blue)](https://github.com/liu7say/mihomo-override/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![Kernel](https://img.shields.io/badge/Kernel-Mihomo%20Meta-orange?style=flat-square)](https://github.com/MetaCubeX/mihomo)
-[![CI Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/liu7say/self-mihomo-override/actions)
+[![CI Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/liu7say/mihomo-override/actions)
 
 [English](README_EN.md) | [简体中文](README.md)
 
@@ -17,15 +17,15 @@
 
 ---
 
-## 📖 项目简介
+## 项目简介
 
-**self-mihomo-override** 是一套专为 Mihomo (Clash.Meta) 生态量身定制的高性能、全闭环规则覆写工程方案。
+**mihomo-override** 是一套专为 Mihomo (Clash.Meta) 生态量身定制的高性能、全闭环规则覆写工程方案。
 
 针对传统规则覆写“多文件编排脆弱易清空、规则集冷启动死锁引发 TLS EOF 报错、并发健康检查拖垮路由器连接表、移动端海量策略组滑动卡顿”等工业级网络痛点，本项目通过现代化代码生成器与运行时防御架构，为不同硬件终端提供从极简省电到桌面极客的全域分流能力。
 
 ---
 
-## ⚡ 核心优势与技术调优
+## 核心优势与技术调优
 
 | 核心调优特性 | 传统覆写痛点 | 本项目解决方案 | 实际收益 |
 |---|---|---|---|
@@ -37,7 +37,7 @@
 
 ---
 
-## 🧭 三大预设档位决策矩阵
+## 三大预设档位决策矩阵
 
 根据您的终端设备性能与实际分流需求，选择最适配的预设档位：
 
@@ -49,13 +49,13 @@
 
 ---
 
-## 🚀 快速上手与开箱即用
+## 快速上手与开箱即用
 
-您可以直接从最新发布的 **[GitHub Releases](https://github.com/liu7say/self-mihomo-override/releases)** 下载已打包好的脱敏覆写脚本，或克隆本仓库使用。
+您可以直接从最新发布的 **[GitHub Releases](https://github.com/liu7say/mihomo-override/releases)** 下载已打包好的脱敏覆写脚本，或克隆本仓库使用。
 
 ### 方案 A：Flclash / bettbox (跨平台最简推荐)
 
-1. 打开客户端设置 → **配置覆写 (Script / Override)** 或进入脚本编辑区；
+1. 打开客户端设置 -> **配置覆写 (Script / Override)** 或进入脚本编辑区；
 2. 打开本仓库对应档位的脱敏模板（如 [override/example/customSubBoost.standard.example.js](override/example/customSubBoost.standard.example.js)）；
 3. **全选复制代码**，粘贴到客户端脚本输入框中；
 4. （可选）在脚本开头的 `CONFIG` 对象中按需调整参数（如最大节点倍率）；
@@ -82,7 +82,7 @@
 
 ---
 
-## ⚙️ 运行时配置参数说明 (CONFIG)
+## 运行时配置参数说明 (CONFIG)
 
 所有 All-in-One JS 覆写文件顶部均提供了清晰明了的声明式配置字典，无需重新编译，在客户端直接微调即刻生效：
 
@@ -118,7 +118,7 @@ const CONFIG = {
 
 ---
 
-## 📂 项目目录结构
+## 项目目录结构
 
 ```
 ├── .github/workflows/                 GitHub Actions 自动化 CI/CD 与 Release 流水线
@@ -129,24 +129,24 @@ const CONFIG = {
 │   ├── private_work.example.json      [公开模板] 脱敏个人内网配置范例
 │   └── private_work.json              [本地私有] 个人工作内网真实配置 (受 .gitignore 严密隔离)
 ├── docs/
-│   ├── PROJECT.md                     ★ 项目权威技术架构、合并语义与跨端适配指南
-│   └── PERFORMANCE.md                 ★ 深度网络性能调优与冷启动基准测试报告
+│   ├── PROJECT.md                     项目权威技术架构、合并语义与跨端适配指南
+│   └── PERFORMANCE.md                 深度网络性能调优与冷启动基准测试报告
 ├── override/
-│   ├── js/                            ★【本地私有产物】已注入真实内网配置 (整目录 gitignore 保护)
+│   ├── js/                            [本地私有产物] 已注入真实内网配置 (整目录 gitignore 保护)
 │   │   ├── customSubBoost.minimal.js
 │   │   ├── customSubBoost.standard.js
 │   │   └── customSubBoost.full.js
-│   ├── example/                       ★【公开脱敏模板】纯净脱敏样例 (Git 追踪，供开源分享)
+│   ├── example/                       [公开脱敏模板] 纯净脱敏样例 (Git 追踪，供开源分享)
 │   │   ├── customSubBoost.minimal.example.js
 │   │   ├── customSubBoost.standard.example.js
 │   │   └── customSubBoost.full.example.js
-│   └── yaml/                          ★【双轨纯 YAML】传统规则追加备用 (Git 追踪)
+│   └── yaml/                          [双轨纯 YAML] 传统规则追加备用 (Git 追踪)
 │       ├── customSubBoost.minimal.yaml
 │       ├── customSubBoost.standard.yaml
 │       └── customSubBoost.full.yaml
 └── scripts/
-    ├── gen_override.py                ★ 核心生成器：读取配置并并行渲染 3 大档位 JS 与 YAML
-    ├── test_js_override.py            ★ 自动化测试：Node.js 运行时 10 项核心断言沙箱套件
+    ├── gen_override.py                核心生成器：读取配置并并行渲染 3 大档位 JS 与 YAML
+    ├── test_js_override.py            自动化测试：Node.js 运行时 10 项核心断言沙箱套件
     ├── nest_check.py                  策略组拓扑有向图无环检测与最大深度核查
     ├── verify.py                      内核实测：基于本地真实机场订阅底稿进行语法与分流测试
     ├── check_icons.py                 Qure Color 图标集存在性与语义替代校验
@@ -155,14 +155,14 @@ const CONFIG = {
 
 ---
 
-## 🛠️ 本地开发与编译指南
+## 本地开发与编译指南
 
 本项目使用纯 Python 3.9+ 编写，依赖极轻：
 
 ```bash
 # 1. 克隆仓库并安装依赖
-git clone https://github.com/liu7say/self-mihomo-override.git
-cd self-mihomo-override
+git clone https://github.com/liu7say/mihomo-override.git
+cd mihomo-override
 pip install -r requirements.txt
 
 # 2. 一键编译全量 3 大预设档位 (自动产出 js/, example/, yaml/)
@@ -175,7 +175,7 @@ python scripts/nest_check.py          # 策略组 DAG 拓扑无环检测 (0 闭�
 
 ---
 
-## ❓ 常见问题排查 (FAQ)
+## 常见问题排查 (FAQ)
 
 <details>
 <summary><b>Q1: 为什么客户端更新配置时提示规则集下载失败或 SSL/TLS EOF？</b></summary>
@@ -194,14 +194,14 @@ python scripts/nest_check.py          # 策略组 DAG 拓扑无环检测 (0 闭�
 <details>
 <summary><b>Q3: 手机端使用全量版感觉策略组长列表滑动略有掉帧，如何解决？</b></summary>
 
-> **解决**：移动端推荐使用 **`Standard (标准版)`**（23 组）或 **`Minimal (极简版)`**（16 组）。这两个档位精简了桌面端繁复的细粒度流媒体分类，聚焦核心网络直连与主流社交/视频分流，内存占用削减 50% 以上，滑动如丝般顺滑。
+> **解决**：移动端推荐使用 **`Standard (标准版)`**（23 组）或 **`Minimal (极简版)`**（16 组）。这两个档位精简了桌面端繁复的细粒度流媒体分类，聚焦核心网络直连与主流社交/视频分流，内存占用削减 50% 以上，滑动顺畅自然。
 </details>
 
 ---
 
-## 🙏 致谢与开源基石 (Acknowledgments)
+## 致谢与开源基石 (Acknowledgments)
 
-本项目深度借鉴、整合并受益于以下优秀的开源项目与社区生态，特此致以崇高敬意：
+本项目深度借鉴、整合并受益于以下优秀的开源项目与社区生态，特此致以诚挚敬意：
 
 | 开源项目 / 资源 | 角色与贡献定位 | 官方链接 | 开源协议 |
 |---|---|---|:---:|
@@ -214,6 +214,6 @@ python scripts/nest_check.py          # 策略组 DAG 拓扑无环检测 (0 闭�
 
 ---
 
-## 📄 开源许可证
+## 开源许可证
 
 本项目基于 [MIT License](LICENSE) 协议开源。
