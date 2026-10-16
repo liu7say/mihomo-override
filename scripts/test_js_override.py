@@ -47,9 +47,13 @@ def run_node_test(test_script: str) -> dict:
 
 
 def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
-    js_path = REPO_ROOT / "override" / f"customSubBoost.{tier}.js"
+    # 优先检测带有本地私有配置的自用脚本，若不存在则回退检测公开脱敏示例模板
+    js_path = REPO_ROOT / "override" / "js" / f"customSubBoost.{tier}.js"
     if not js_path.exists():
-        js_path = REPO_ROOT / "override" / f"customSubBoost.{tier}.example.js"
+        js_path = REPO_ROOT / "override" / "example" / f"customSubBoost.{tier}.example.js"
+    if not js_path.exists():
+        # 兼容旧平铺路径
+        js_path = REPO_ROOT / "override" / f"customSubBoost.{tier}.js"
     if not js_path.exists():
         sys.exit(f"【致命错误】找不到 JS 覆写文件: {js_path}")
 

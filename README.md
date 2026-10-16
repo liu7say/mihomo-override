@@ -35,15 +35,18 @@
 │   ├── PROJECT.md                     ★ 项目权威技术文档（架构设计/合并机制/跨端适配/踩坑）
 │   └── PERFORMANCE.md                 ★ 规则与网络性能分析报告（冷启动/测速风暴/DNS链路）
 ├── override/
-│   ├── customSubBoost.minimal.js      ★【极简版】手机/Bettbox 轻量办公 (16组, 12规则集, 注入私有配置)
-│   ├── customSubBoost.minimal.example.js  【公开模板】极简版脱敏模板
-│   ├── customSubBoost.minimal.yaml    【极简版】双轨纯 YAML 覆写
-│   ├── customSubBoost.standard.js     ★【标准版】日常黄金主流推荐 (23组, 24规则集, 注入私有配置)
-│   ├── customSubBoost.standard.example.js 【公开模板】标准版脱敏模板
-│   ├── customSubBoost.standard.yaml   【标准版】双轨纯 YAML 覆写
-│   ├── customSubBoost.full.js         ★【全量版】桌面/极客细粒度分流 (41组, 94规则集, 注入私有配置)
-│   ├── customSubBoost.full.example.js     【公开模板】全量版脱敏模板
-│   └── customSubBoost.full.yaml       【全量版】双轨纯 YAML 覆写
+│   ├── js/                                ★【本地私有全合一】已注入私有内网配置 (受 .gitignore 隔离保护)
+│   │   ├── customSubBoost.minimal.js      【极简版】手机/Bettbox 轻量办公 (16组, 12规则集)
+│   │   ├── customSubBoost.standard.js     【标准版】日常黄金主流推荐 (23组, 24规则集)
+│   │   └── customSubBoost.full.js         【全量版】桌面/极客细粒度分流 (41组, 94规则集)
+│   ├── example/                           ★【公开脱敏模板】开源纯净脱敏样例 (Git 追踪与分享)
+│   │   ├── customSubBoost.minimal.example.js
+│   │   ├── customSubBoost.standard.example.js
+│   │   └── customSubBoost.full.example.js
+│   └── yaml/                              ★【双轨纯 YAML】传统规则追加备用 (Git 追踪)
+│       ├── customSubBoost.minimal.yaml
+│       ├── customSubBoost.standard.yaml
+│       └── customSubBoost.full.yaml
 └── scripts/
     ├── gen_override.py                ★ 核心生成器：读取配置，自动化并行渲染 3 大预设档位 JS 与 YAML 产物
     ├── test_js_override.py            ★ 自动化测试：Node.js 运行时 10 项核心断言沙箱套件 (全量覆盖 3 档)
@@ -58,21 +61,22 @@
 
 ## 客户端一键部署指南
 
-根据使用场景在 `override/` 目录挑选最适合您的预设档位：
-- **移动端 / Bettbox 推荐**：`customSubBoost.standard.js`（日常黄金主流）或 `customSubBoost.minimal.js`（极简省电，仅核心分流）；
-- **桌面 / 极客推荐**：`customSubBoost.full.js`（全量 41 组细粒度分流）。
+根据使用场景在 `override/js/` 目录挑选最适合您的预设档位：
+- **移动端 / Bettbox 推荐**：`override/js/customSubBoost.standard.js`（日常黄金主流）或 `override/js/customSubBoost.minimal.js`（极简省电，仅核心分流）；
+- **桌面 / 极客推荐**：`override/js/customSubBoost.full.js`（全量 41 组细粒度分流）。
 
 ### 方案 A：Flclash / bettbox (最简推荐)
 
 1. 打开客户端设置 → **配置覆写 (Script / Override)** 或进入配置脚本编辑区。
-2. 打开本仓库对应档位的 JS 文件（如 [override/customSubBoost.standard.js](file:///d:/Code/项目/我的/self-mihomo-override/override/customSubBoost.standard.js)），**全选复制**并粘贴到客户端脚本输入框中。
+2. 打开本仓库对应档位的 JS 文件（如 [override/js/customSubBoost.standard.js](file:///d:/Code/项目/我的/self-mihomo-override/override/js/customSubBoost.standard.js)），**全选复制**并粘贴到客户端脚本输入框中。
 3. （可选）在脚本开头的 `CONFIG` 对象中按需调整参数（如 `cleanHighMultiplier` 开关或 `maxMultiplier` 上限）。
 4. 保存并更新配置，立即生效！
 
 ### 方案 B：Clash Party / Sparkle
 
 1. 将所选档位的 JS 脚本复制到客户端覆写目录：
-   - 路径通常为：`%APPDATA%\mihomo-party\override\customSubBoost.standard.js`
+   - 复制源文件：`override/js/customSubBoost.standard.js`
+   - 目标路径通常为：%APPDATA%\mihomo-party\override\customSubBoost.standard.js
 2. 打开客户端「覆写」管理面板，新建或注册覆写项：
    - **名称**：`SubBoost 标准版覆写`
    - **类型**：`JavaScript` (ext: `js`)
@@ -82,13 +86,13 @@
 
 ### 方案 C：仅支持 YAML 的客户端 (双轨备用)
 
-如果客户端不支持 JavaScript 脚本运行，可直接挂载对应档位的 `override/customSubBoost.{tier}.yaml` 作为 YAML 覆写。
+如果客户端不支持 JavaScript 脚本运行，可直接挂载对应档位的 `override/yaml/customSubBoost.{tier}.yaml` 作为 YAML 覆写。
 
 ---
 
 ## 运行时配置参数说明 (CONFIG)
 
-在 `override/customSubBoost.js` 顶部，提供了简明易懂的声明式配置字典：
+在 `override/js/customSubBoost.*.js` 顶部，提供了简明易懂的声明式配置字典：
 
 ```javascript
 const CONFIG = {
@@ -149,9 +153,9 @@ python scripts/gen_override.py
 ```
 
 **编译输出与生成逻辑**：
-- `override/customSubBoost.{minimal,standard,full}.js`：★ **本地自用全合一脚本**。若检测到 `config/private_work.json`，自动将其中的内网域名、IP、进程和 DNS 策略无缝打包注入顶部 `CONFIG`（已被 `.gitignore` 保护，绝不泄漏）。
-- `override/customSubBoost.{minimal,standard,full}.example.js`：★ **公开脱敏模板**。永不包含任何个人敏感信息，供 Git 追踪或分享。
-- `override/customSubBoost.{minimal,standard,full}.yaml`：★ **双轨纯 YAML 备份**。供仅支持 YAML 格式的客户端使用。
+- `override/js/customSubBoost.{minimal,standard,full}.js`：★ **本地自用全合一脚本**。若检测到 `config/private_work.json`，自动将其中的内网域名、IP、进程和 DNS 策略无缝打包注入顶部 `CONFIG`（已被 `.gitignore` 目录级隔离保护，绝不泄漏）。
+- `override/example/customSubBoost.{minimal,standard,full}.example.js`：★ **公开脱敏模板**。永不包含任何个人敏感信息，供 Git 追踪或分享。
+- `override/yaml/customSubBoost.{minimal,standard,full}.yaml`：★ **双轨纯 YAML 备份**。供仅支持 YAML 格式的客户端使用。
 
 #### B. 常用构建参数与编译模式
 

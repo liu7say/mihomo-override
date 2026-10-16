@@ -9,7 +9,7 @@
 
 ## 一、 整体规模与运行性能指标
 
-全合一 JS 覆写产物（`override/customSubBoost.js`）及双轨 YAML 产物在 Mihomo Meta 内核下的实测规模与指标：
+全合一 JS 覆写产物（位于 `override/js/` 目录）及双轨 YAML 产物（位于 `override/yaml/` 目录）在 Mihomo Meta 内核下的实测规模与指标：
 
 | 评估维度 | 指标参数 | 性能等级 | 架构优化收益与落地状态 |
 |---|---|---|---|

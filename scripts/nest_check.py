@@ -147,12 +147,15 @@ def main() -> int:
         targets.append(custom_target)
     else:
         for tier in DEFAULT_PRESET_TIERS:
-            p = REPO_ROOT / "override" / f"customSubBoost.{tier}.yaml"
+            # 优先检测子目录 override/yaml/，回退检测旧平铺路径
+            p = REPO_ROOT / "override" / "yaml" / f"customSubBoost.{tier}.yaml"
+            if not p.exists():
+                p = REPO_ROOT / "override" / f"customSubBoost.{tier}.yaml"
             if p.exists():
                 targets.append(p)
 
     if not targets:
-        sys.exit("【错误】在 override/ 目录下未找到任何 customSubBoost.*.yaml 覆写文件！")
+        sys.exit("【错误】在 override/yaml/ 目录下未找到任何 customSubBoost.*.yaml 覆写文件！")
 
     all_passed = True
     print(f"[*] 开始对 {len(targets)} 个预设覆写产物进行拓扑与环引用核查...")

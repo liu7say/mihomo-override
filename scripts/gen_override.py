@@ -8,11 +8,12 @@ SubBoost 规则体系 · 全合一跨端覆写配置生成器 (工业级重构�
 bettbox 等 Mihomo (Clash.Meta) 内核客户端的覆写产物。
 
 【产物多档位输出 (Minimal / Standard / Full)】
-1. override/customSubBoost.{minimal,standard,full}.js (主力推荐 · All-in-One 全合一覆写):
+1. override/js/customSubBoost.{minimal,standard,full}.js (主力推荐 · 本地自用 All-in-One 覆写):
    - 彻底整合 DNS 统一治理 + 节点清洗引擎 + 策略组与规则集按场景分流
-   - 文件顶部提供声明式 CONFIG 对象，在 JS 运行时动态控制工作地址与节点清洗开关
-   - 纯标准 ECMAScript 语法，零外部依赖，跨平台通跑 (桌面与 Android/iOS 移动端)
-2. override/customSubBoost.{minimal,standard,full}.yaml (双轨备用 · 纯 YAML 覆写):
+   - 注入个人私有内网工作配置，受 .gitignore 严密隔离保护
+2. override/example/customSubBoost.{minimal,standard,full}.example.js (公开脱敏示例模板):
+   - 永不包含个人敏感配置，供 Git 追踪与社区分享
+3. override/yaml/customSubBoost.{minimal,standard,full}.yaml (双轨备用 · 纯 YAML 覆写):
    - 遵循 rules+: 追加语义，供偏好传统多覆写模式的用户使用
 
 【设计哲学与铁律】
@@ -62,8 +63,11 @@ RULES_PROFILE_JSON = REPO_ROOT / "config" / "rules_profile.json"
 # 本地私有工作配置文件 (config/private_work.json, 已被 gitignore 隔离)
 PRIVATE_WORK_JSON = REPO_ROOT / "config" / "private_work.json"
 
-# 覆写产物输出目录
+# 覆写产物输出目录及分层子目录
 OVERRIDE_DIR = REPO_ROOT / "override"
+OVERRIDE_JS_DIR = OVERRIDE_DIR / "js"             # 本地自用注入私有配置的 JS 脚本目录
+OVERRIDE_EXAMPLE_DIR = OVERRIDE_DIR / "example"   # 公开脱敏样例模板目录 (Git 追踪)
+OVERRIDE_YAML_DIR = OVERRIDE_DIR / "yaml"         # 双轨纯 YAML 覆写目录 (Git 追踪)
 
 # 三大预设档位定义
 PRESETS = {
@@ -1255,7 +1259,11 @@ def main() -> None:
     else:
         print("[*] 未检测到本地私有配置，使用纯净配置模板生成...")
 
+    # 确保产物根目录及分类子目录全部创建
     OVERRIDE_DIR.mkdir(parents=True, exist_ok=True)
+    OVERRIDE_JS_DIR.mkdir(parents=True, exist_ok=True)
+    OVERRIDE_EXAMPLE_DIR.mkdir(parents=True, exist_ok=True)
+    OVERRIDE_YAML_DIR.mkdir(parents=True, exist_ok=True)
 
     for tier in tiers:
         preset_info = PRESETS[tier]
@@ -1277,8 +1285,8 @@ def main() -> None:
 
         # 1. 构建与写出 JS 产物
         if not args.yaml_only:
-            js_path = OVERRIDE_DIR / f"customSubBoost.{tier}.js"
-            example_js_path = OVERRIDE_DIR / f"customSubBoost.{tier}.example.js"
+            js_path = OVERRIDE_JS_DIR / f"customSubBoost.{tier}.js"
+            example_js_path = OVERRIDE_EXAMPLE_DIR / f"customSubBoost.{tier}.example.js"
 
             # 生成本地直接开箱即用版（注入个人工作内网信息）
             js_text = build_all_in_one_js(
@@ -1307,13 +1315,13 @@ def main() -> None:
 
         # 2. 构建与写出 YAML 产物
         if not args.js_only:
-            yaml_path = OVERRIDE_DIR / f"customSubBoost.{tier}.yaml"
+            yaml_path = OVERRIDE_YAML_DIR / f"customSubBoost.{tier}.yaml"
             yaml_text = build_yaml(groups, providers, pre_game, subboost_rules)
             self_check_yaml(yaml_text)
             yaml_path.write_text(yaml_text, encoding="utf-8")
             print(f"  [✔] 备用 YAML 覆写生成成功: {yaml_path.name} (共 {len(yaml_text)} 字节, {yaml_text.count(chr(10))} 行)")
 
-    print(f"\n[*] 自检断言全部通过：全部 {len(tiers)} 个档位均已成功输出至 {OVERRIDE_DIR.name}/ 目录！")
+    print(f"\n[*] 自检断言全部通过：全部 {len(tiers)} 个档位均已成功输出至 {OVERRIDE_DIR.name}/(js, example, yaml) 子目录！")
 
 
 if __name__ == "__main__":

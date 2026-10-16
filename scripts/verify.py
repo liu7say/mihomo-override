@@ -138,8 +138,11 @@ def run_js_override(js_path: Path, profile_data: dict) -> dict:
 def test_kernel_config(workdir: Path, config_data: dict, pid: str) -> tuple[bool, str]:
     """将配置与必要资源写入沙箱目录并调用 mihomo 内核 -t 语法测试。"""
     if workdir.exists():
-        shutil.rmtree(workdir)
-    workdir.mkdir(parents=True)
+        try:
+            shutil.rmtree(workdir)
+        except Exception:
+            pass
+    workdir.mkdir(parents=True, exist_ok=True)
 
     # 复制 geo 数据库资源
     for f in ("geoip.metadb", "geoip.dat", "geosite.dat", "country.mmdb", "ASN.mmdb"):
@@ -188,10 +191,16 @@ def load_front_rules() -> list[str]:
 def verify_tier(tier: str, discovered: dict[str, tuple[str, dict]]) -> list[tuple[str, str]]:
     """针对单个预设档位，执行 JS 与 YAML 双轨真实订阅测试。"""
     print(f"\n>>> 正在验证档位: [{tier.upper()}] <<<")
-    js_override = REPO_ROOT / "override" / f"customSubBoost.{tier}.js"
+    # 优先检测子目录 override/js/，回退检测 override/example/，再兼容旧平铺路径
+    js_override = REPO_ROOT / "override" / "js" / f"customSubBoost.{tier}.js"
     if not js_override.exists():
-        js_override = REPO_ROOT / "override" / f"customSubBoost.{tier}.example.js"
-    yaml_override = REPO_ROOT / "override" / f"customSubBoost.{tier}.yaml"
+        js_override = REPO_ROOT / "override" / "example" / f"customSubBoost.{tier}.example.js"
+    if not js_override.exists():
+        js_override = REPO_ROOT / "override" / f"customSubBoost.{tier}.js"
+
+    yaml_override = REPO_ROOT / "override" / "yaml" / f"customSubBoost.{tier}.yaml"
+    if not yaml_override.exists():
+        yaml_override = REPO_ROOT / "override" / f"customSubBoost.{tier}.yaml"
 
     failures = []
 
