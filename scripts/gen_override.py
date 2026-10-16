@@ -398,7 +398,7 @@ _EMOJI_RE = re.compile(
 
 
 def strip_emoji(name: str) -> str:
-    """清理字符串中的 emoji 及多余空格，保证组名斯巴达且纯粹。"""
+    """清理字符串中的 emoji 及多余空格，保证组名简洁规范且纯粹。"""
     out = _EMOJI_RE.sub("", name)
     out = re.sub(r"\s{2,}", " ", out)
     return out.strip()
