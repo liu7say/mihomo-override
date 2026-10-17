@@ -89,6 +89,9 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
         {{ name: "套餐: 500G", type: "ss", server: "1.1.1.18", port: 443 }},         // 套餐信息节点，必须剔除
         {{ name: "套餐：年付VIP", type: "ss", server: "1.1.1.19", port: 443 }},      // 套餐中文冒号节点，必须剔除
         {{ name: "过期: 2026-12-31", type: "ss", server: "1.1.1.20", port: 443 }},   // 过期信息节点，必须剔除
+        {{ name: "🇸🇬 狮城 01 优质专线", type: "ss", server: "1.1.1.21", port: 443 }}, // 狮城正常节点
+        {{ name: "🇹🇼 台湾 01 优质专线", type: "ss", server: "1.1.1.22", port: 443 }}, // 台湾正常节点
+        {{ name: "🇰🇷 韩国 01 优质专线", type: "ss", server: "1.1.1.23", port: 443 }}, // 韩国正常节点
       ],
       "proxy-groups": [
         {{
@@ -150,6 +153,15 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     const switchedSampleUrl = switchedCdnOutput["rule-providers"]["cn"] ? switchedCdnOutput["rule-providers"]["cn"].url : "";
     const switchedSampleIcon = switchedCdnOutput["proxy-groups"][0] ? switchedCdnOutput["proxy-groups"][0].icon : "";
 
+    // 零节点地区物理剔除仿真测试（模拟缺失韩国节点的订阅输入）
+    const noKrInput = JSON.parse(JSON.stringify(mockInput));
+    noKrInput.proxies = noKrInput.proxies.filter(p => !p.name.includes("韩国"));
+    const noKrOutput = main(noKrInput);
+    const noKrGroupNames = noKrOutput["proxy-groups"].map(g => g.name);
+    const noKrSelectGroup = noKrOutput["proxy-groups"].find(g => g.name === "节点选择");
+    const noKrSelectProxies = noKrSelectGroup ? noKrSelectGroup.proxies : [];
+    const noKrAllGroupProxies = noKrOutput["proxy-groups"].flatMap(g => Array.isArray(g.proxies) ? g.proxies : []);
+
     console.log(JSON.stringify({{
       remainingProxies: remainingProxies,
       groupsCount: groupsCount,
@@ -178,6 +190,10 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
       groupNames: output["proxy-groups"].map(g => g.name),
       providerKeys: Object.keys(output["rule-providers"]),
       allRules: output.rules,
+      noKrHasKoreaGroup: noKrGroupNames.includes("韩国节点"),
+      noKrSelectHasKorea: noKrSelectProxies.includes("韩国节点"),
+      noKrAnyGroupHasKorea: noKrAllGroupProxies.includes("韩国节点"),
+      noKrGroupsCount: noKrOutput["proxy-groups"].length,
     }}));
     """
 
@@ -217,6 +233,12 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     leaked_in_groups = res["leakedProxiesInGroups"]
     assert len(leaked_in_groups) == 0, f"✘ [{tier}] 策略组中残留已被移除的节点死链引用: {leaked_in_groups}"
 
+    # 断言 5.1: 零节点地区组物理剔除与上游引用自动净化 (Linus: 好品味消除视觉噪音与死锁)
+    assert not res["noKrHasKoreaGroup"], f"✘ [{tier}] 无韩国节点输入时，'韩国节点' 策略组未被物理剔除！"
+    assert not res["noKrSelectHasKorea"], f"✘ [{tier}] 无韩国节点输入时，'节点选择' 策略组仍残留 '韩国节点' 死链！"
+    assert not res["noKrAnyGroupHasKorea"], f"✘ [{tier}] 无韩国节点输入时，策略组中仍残留 '韩国节点' 引用！"
+    assert res["noKrGroupsCount"] == exp_groups - 1, f"✘ [{tier}] 物理剔除韩国节点后策略组数量应为 {exp_groups - 1}，实测 {res['noKrGroupsCount']}"
+
     # 断言 6: DNS 与 Fake-IP 白名单（含连通性探测放行与 Google 排除）
     fake_filters = res["dnsFakeIpFilters"]
     assert "+.corp.internal" in fake_filters, f"✘ [{tier}] 工作域名未自动并入 Fake-IP 放行列表！"
@@ -238,13 +260,15 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     assert res["ipv6"] is False, f"✘ [{tier}] 顶层 config.ipv6 未显式设置为 false: {res['ipv6']}"
     assert res["emptyIpv6"] is False, f"✘ [{tier}] 空输入时顶层 config.ipv6 未显式设置为 false: {res['emptyIpv6']}"
     assert res["nameserver"] == [
+        "223.5.5.5",
+        "119.29.29.29",
         "https://223.5.5.5/dns-query",
         "https://doh.pub/dns-query",
-    ], f"✘ [{tier}] nameserver 未精简为双高可用 DoH: {res['nameserver']}"
+    ], f"✘ [{tier}] nameserver 未配置为双 UDP 优先 + 双 DoH 兜底: {res['nameserver']}"
 
-    # 地区小策略组容灾保底检查 (验证 6 核心地区组均注入了「自动选择」保底项)
+    # 地区策略组属地纯净性检查 (严禁将全局「自动选择」等动态组作为后备注入地区 url-test 组，消除 33ms 延迟劫持)
     for rg in res.get("regionGroupProxies", []):
-        assert "自动选择" in (rg.get("proxies") or []), f"✘ [{tier}] 地区组 '{rg['name']}' 缺少容灾保底项 '自动选择': {rg.get('proxies')}"
+        assert "自动选择" not in (rg.get("proxies") or []), f"✘ [{tier}] 地区组 '{rg['name']}' 违规残留全局动态组 '自动选择': {rg.get('proxies')}"
 
     # 核验工业级标准 204 HTTPS 测速 URL 与策略组冗余正则精简
     for tu in res.get("testUrls", []):

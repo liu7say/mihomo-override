@@ -160,7 +160,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/United_States.png",
     "type": "url-test",
     "proxies": [
-      "自动选择"
+      "DIRECT"
     ],
     "include-all": true,
     "filter": "(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|United.?States|America",
@@ -175,7 +175,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Hong_Kong.png",
     "type": "url-test",
     "proxies": [
-      "自动选择"
+      "DIRECT"
     ],
     "include-all": true,
     "filter": "(?i)香港|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|Hong.?Kong|HKG",
@@ -189,7 +189,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Japan.png",
     "type": "url-test",
     "proxies": [
-      "自动选择"
+      "DIRECT"
     ],
     "include-all": true,
     "filter": "(?i)日本|东京|大阪|川日|沪日|深日|泉日|埼玉|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|Japan|Tokyo|Osaka",
@@ -203,7 +203,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Singapore.png",
     "type": "url-test",
     "proxies": [
-      "自动选择"
+      "DIRECT"
     ],
     "include-all": true,
     "filter": "(?i)新加坡|狮城|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|Singapore",
@@ -217,7 +217,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Taiwan.png",
     "type": "url-test",
     "proxies": [
-      "自动选择"
+      "DIRECT"
     ],
     "include-all": true,
     "filter": "(?i)台湾|台北|台中|新北|彰化|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|Taiwan|Taipei|Kaohsiung",
@@ -232,7 +232,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Korea.png",
     "type": "url-test",
     "proxies": [
-      "自动选择"
+      "DIRECT"
     ],
     "include-all": true,
     "filter": "(?i)韩国|首尔|韓|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)|Korea|KOR",
@@ -608,6 +608,8 @@ function main(config) {
       "respect-rules": false,
       "default-nameserver": ["223.5.5.5", "119.29.29.29"],
       nameserver: [
+        "223.5.5.5",
+        "119.29.29.29",
         "https://223.5.5.5/dns-query",
         "https://doh.pub/dns-query",
       ],
@@ -627,31 +629,46 @@ function main(config) {
   }
 
   // ==========================================================================
-  // 第三步：策略组注入与级联引用清理
+  // 第三步：策略组注入与零节点地区组物理剔除 (Linus: 好品味消除视觉噪音与死锁)
   // ==========================================================================
-  // 注入预编译的 SubBoost 策略组（深拷贝避免受外部修改影响）
-  const groups = JSON.parse(JSON.stringify(SUBBOOST_PROXY_GROUPS));
+  const rawGroups = JSON.parse(JSON.stringify(SUBBOOST_PROXY_GROUPS));
+  const cleanProxies = config.proxies || [];
 
-  // 级联清理：若策略组显式声明了 proxies 列表，剔除已被移除的节点名
-  for (const group of groups) {
-    if (Array.isArray(group.proxies)) {
-      group.proxies = group.proxies.filter(name => !removedNames.has(name));
+  // 1. 扫描 6 核心地区策略组：若在已清洗节点池中物理节点数为 0，则物理剔除（不加入 groups 列表）
+  const groups = [];
+  for (const group of rawGroups) {
+    if (group.type === "url-test" && group.filter) {
+      const cleanFilter = group.filter.replace(/^\(\?i\)/, "");
+      const cleanExclude = group["exclude-filter"] ? group["exclude-filter"].replace(/^\(\?i\)/, "") : null;
+      let filterRe = null;
+      let excludeRe = null;
+      try {
+        filterRe = new RegExp(cleanFilter, "i");
+        excludeRe = cleanExclude ? new RegExp(cleanExclude, "i") : null;
+      } catch (e) {
+        // 若正则表达式解析异常，作为防御性安全跳过
+      }
+      const hasNodes = filterRe && cleanProxies.some(p => {
+        if (!p || typeof p.name !== "string") return false;
+        return filterRe.test(p.name) && (!excludeRe || !excludeRe.test(p.name));
+      });
+      if (!hasNodes) {
+        // 当前订阅中无该地区物理节点，彻底跳过不生成，消除空组与测速死锁
+        continue;
+      }
     }
+    groups.push(group);
   }
 
-  // 保护脆弱小地区策略组：容灾保底机制 (Linus: 好品味消除单点雪崩)
-  // 为 6 核心地区 url-test 策略组注入全局「自动选择」保底项
-  // 当地区节点筛选数极少（如台湾仅 3 节点）且发生单点中转超时，或节点数为 0（如韩国 0 节点）时，
-  // 内核可顺滑回退至「自动选择」，杜绝全核健康检查风暴与级联超时
-  const autoGroupName = "自动选择";
+  // 2. 级联净化死链：自动抹去已被剔除的策略组及无效节点引用 (零死锁、零空组)
+  const validGroupNames = new Set(groups.map(g => g.name));
+  const validProxyNames = new Set(cleanProxies.map(p => p.name));
+  const builtInTargets = new Set(["DIRECT", "REJECT", "PASS", "COMPATIBLE"]);
+  const isValidTarget = name => validGroupNames.has(name) || validProxyNames.has(name) || builtInTargets.has(name);
+
   for (const group of groups) {
-    if (group.type === "url-test" && group.filter) {
-      if (!Array.isArray(group.proxies)) {
-        group.proxies = [];
-      }
-      if (!group.proxies.includes(autoGroupName)) {
-        group.proxies.push(autoGroupName);
-      }
+    if (Array.isArray(group.proxies)) {
+      group.proxies = group.proxies.filter(isValidTarget);
     }
   }
 

@@ -523,8 +523,8 @@ def build_data_models(
                     "name": r["name"],
                     "icon": f"{icon_base}/{r['icon']}.png",
                     "type": "url-test",
-                    # 容灾保底代理项：保证地区节点清零或单点中转抖动时平滑回退，杜绝全核健康检查风暴 (双轨源头统一)
-                    "proxies": [auto_name],
+                    # 纯 YAML 模式安全保底项：当地区节点数为 0 时回退直连，彻底解除对「自动选择」的有毒嵌套 (切断 33ms 延迟陷阱)
+                    "proxies": ["DIRECT"],
                     "include-all": True,
                     "filter": r["filter"],
                     "exclude-filter": junk,
@@ -1068,6 +1068,8 @@ function main(config) {
       "respect-rules": false,
       "default-nameserver": ["223.5.5.5", "119.29.29.29"],
       nameserver: [
+        "223.5.5.5",
+        "119.29.29.29",
         "https://223.5.5.5/dns-query",
         "https://doh.pub/dns-query",
       ],
@@ -1087,31 +1089,46 @@ function main(config) {
   }
 
   // ==========================================================================
-  // 第三步：策略组注入与级联引用清理
+  // 第三步：策略组注入与零节点地区组物理剔除 (Linus: 好品味消除视觉噪音与死锁)
   // ==========================================================================
-  // 注入预编译的 SubBoost 策略组（深拷贝避免受外部修改影响）
-  const groups = JSON.parse(JSON.stringify(SUBBOOST_PROXY_GROUPS));
+  const rawGroups = JSON.parse(JSON.stringify(SUBBOOST_PROXY_GROUPS));
+  const cleanProxies = config.proxies || [];
 
-  // 级联清理：若策略组显式声明了 proxies 列表，剔除已被移除的节点名
-  for (const group of groups) {
-    if (Array.isArray(group.proxies)) {
-      group.proxies = group.proxies.filter(name => !removedNames.has(name));
+  // 1. 扫描 6 核心地区策略组：若在已清洗节点池中物理节点数为 0，则物理剔除（不加入 groups 列表）
+  const groups = [];
+  for (const group of rawGroups) {
+    if (group.type === "url-test" && group.filter) {
+      const cleanFilter = group.filter.replace(/^\\(\\?i\\)/, "");
+      const cleanExclude = group["exclude-filter"] ? group["exclude-filter"].replace(/^\\(\\?i\\)/, "") : null;
+      let filterRe = null;
+      let excludeRe = null;
+      try {
+        filterRe = new RegExp(cleanFilter, "i");
+        excludeRe = cleanExclude ? new RegExp(cleanExclude, "i") : null;
+      } catch (e) {
+        // 若正则表达式解析异常，作为防御性安全跳过
+      }
+      const hasNodes = filterRe && cleanProxies.some(p => {
+        if (!p || typeof p.name !== "string") return false;
+        return filterRe.test(p.name) && (!excludeRe || !excludeRe.test(p.name));
+      });
+      if (!hasNodes) {
+        // 当前订阅中无该地区物理节点，彻底跳过不生成，消除空组与测速死锁
+        continue;
+      }
     }
+    groups.push(group);
   }
 
-  // 保护脆弱小地区策略组：容灾保底机制 (Linus: 好品味消除单点雪崩)
-  // 为 6 核心地区 url-test 策略组注入全局「自动选择」保底项
-  // 当地区节点筛选数极少（如台湾仅 3 节点）且发生单点中转超时，或节点数为 0（如韩国 0 节点）时，
-  // 内核可顺滑回退至「自动选择」，杜绝全核健康检查风暴与级联超时
-  const autoGroupName = "自动选择";
+  // 2. 级联净化死链：自动抹去已被剔除的策略组及无效节点引用 (零死锁、零空组)
+  const validGroupNames = new Set(groups.map(g => g.name));
+  const validProxyNames = new Set(cleanProxies.map(p => p.name));
+  const builtInTargets = new Set(["DIRECT", "REJECT", "PASS", "COMPATIBLE"]);
+  const isValidTarget = name => validGroupNames.has(name) || validProxyNames.has(name) || builtInTargets.has(name);
+
   for (const group of groups) {
-    if (group.type === "url-test" && group.filter) {
-      if (!Array.isArray(group.proxies)) {
-        group.proxies = [];
-      }
-      if (!group.proxies.includes(autoGroupName)) {
-        group.proxies.push(autoGroupName);
-      }
+    if (Array.isArray(group.proxies)) {
+      group.proxies = group.proxies.filter(isValidTarget);
     }
   }
 
@@ -1272,8 +1289,10 @@ def self_check_yaml(yaml_text: str, expected_provider_count: int = None) -> None
         raise ValueError("【严重错误】YAML 覆写中未采用标准 https 测速 URL！")
     if "ipv6: false" not in yaml_text:
         raise ValueError("【严重错误】YAML 覆写中缺少顶层 ipv6: false 禁用语句！")
-    if "proxies: [自动选择]" not in yaml_text:
-        raise ValueError("【严重错误】YAML 覆写中地区组缺少 proxies: [自动选择] 容灾保底项！")
+    if "proxies: [DIRECT]" not in yaml_text:
+        raise ValueError("【严重错误】YAML 覆写中地区组缺少 proxies: [DIRECT] 安全保底项！")
+    if "proxies: [自动选择]" in yaml_text:
+        raise ValueError("【严重错误】YAML 覆写中地区组残留有毒嵌套 '自动选择'！")
     if "剩余流量" not in yaml_text or "非代理节点" not in yaml_text:
         raise ValueError("【严重错误】YAML 覆写中未保留完整的 exclude-filter 垃圾过滤正则，破坏向后兼容！")
 
@@ -1296,8 +1315,12 @@ def self_check_js(js_text: str) -> None:
         raise ValueError("【严重错误】JS 覆写缺少正确的 proxy-server-nameserver 顺序！")
     if not re.search(r'"direct-nameserver":\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"system",?\s*\]', js_text):
         raise ValueError("【严重错误】JS 覆写缺少高可用 direct-nameserver 配置！")
-    if not re.search(r'nameserver:\s*\[\s*"https://223\.5\.5\.5/dns-query",\s*"https://doh\.pub/dns-query",?\s*\]', js_text):
-        raise ValueError("【严重错误】JS 覆写缺少精简后的双高可用 nameserver！")
+    if not re.search(r'nameserver:\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"https://223\.5\.5\.5/dns-query",\s*"https://doh\.pub/dns-query",?\s*\]', js_text):
+        raise ValueError("【严重错误】JS 覆写缺少双 UDP 优先 + 双 DoH 兜底的高可用 nameserver！")
+    if "autoGroupName" in js_text:
+        raise ValueError("【严重错误】JS 覆写残留向地区组动态追加 autoGroupName 的有毒逻辑！")
+    if "hasNodes" not in js_text:
+        raise ValueError("【严重错误】JS 覆写缺少零节点地区策略组动态物理剔除引擎！")
     groups_match = re.search(r'const SUBBOOST_PROXY_GROUPS = (\[.*?\]);\s*\n\s*const SUBBOOST_RULE_PROVIDERS', js_text, re.S)
     if groups_match:
         groups_json = groups_match.group(1)
