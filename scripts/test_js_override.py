@@ -266,9 +266,11 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
         "https://doh.pub/dns-query",
     ], f"✘ [{tier}] nameserver 未配置为双 UDP 优先 + 双 DoH 兜底: {res['nameserver']}"
 
-    # 地区策略组属地纯净性检查 (严禁将全局「自动选择」等动态组作为后备注入地区 url-test 组，消除 33ms 延迟劫持)
+    # 地区策略组属地纯净性检查 (严禁将全局「自动选择」等动态组或直连「DIRECT」注入地区组，消除 33ms 延迟劫持与直连断网)
     for rg in res.get("regionGroupProxies", []):
         assert "自动选择" not in (rg.get("proxies") or []), f"✘ [{tier}] 地区组 '{rg['name']}' 违规残留全局动态组 '自动选择': {rg.get('proxies')}"
+        assert "DIRECT" not in (rg.get("proxies") or []), f"✘ [{tier}] 地区组 '{rg['name']}' 违规残留直连 'DIRECT': {rg.get('proxies')}"
+        assert not rg.get("proxies"), f"✘ [{tier}] 地区组 '{rg['name']}' proxies 应为空或未定义，实测为: {rg.get('proxies')}"
 
     # 核验工业级标准 204 HTTPS 测速 URL 与策略组冗余正则精简
     for tu in res.get("testUrls", []):

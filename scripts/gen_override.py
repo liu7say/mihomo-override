@@ -523,8 +523,6 @@ def build_data_models(
                     "name": r["name"],
                     "icon": f"{icon_base}/{r['icon']}.png",
                     "type": "url-test",
-                    # 纯 YAML 模式安全保底项：当地区节点数为 0 时回退直连，彻底解除对「自动选择」的有毒嵌套 (切断 33ms 延迟陷阱)
-                    "proxies": ["DIRECT"],
                     "include-all": True,
                     "filter": r["filter"],
                     "exclude-filter": junk,
@@ -538,7 +536,6 @@ def build_data_models(
                 "name": o["name"],
                 "icon": f"{icon_base}/{o['icon']}.png",
                 "type": "select",
-                "proxies": ["DIRECT"],
                 "include-all": True,
                 "exclude-filter": f"{JUNK}|{o['exclude']}",
             })
@@ -1289,8 +1286,10 @@ def self_check_yaml(yaml_text: str, expected_provider_count: int = None) -> None
         raise ValueError("【严重错误】YAML 覆写中未采用标准 https 测速 URL！")
     if "ipv6: false" not in yaml_text:
         raise ValueError("【严重错误】YAML 覆写中缺少顶层 ipv6: false 禁用语句！")
-    if "proxies: [DIRECT]" not in yaml_text:
-        raise ValueError("【严重错误】YAML 覆写中地区组缺少 proxies: [DIRECT] 安全保底项！")
+    for reg in ["美国节点", "香港节点", "日本节点", "狮城节点", "台湾节点", "韩国节点"]:
+        m = re.search(rf'-\s+name:\s*["\']?{reg}["\']?\s*\n(.*?)(?=\n\s+-\s+name:|\nrule-providers:)', yaml_text, re.S)
+        if m and "proxies:" in m.group(1):
+            raise ValueError(f"【严重错误】YAML 覆写中地区组 '{reg}' 违规混入了 proxies 列表，破坏了属地纯净性！")
     if "proxies: [自动选择]" in yaml_text:
         raise ValueError("【严重错误】YAML 覆写中地区组残留有毒嵌套 '自动选择'！")
     if "剩余流量" not in yaml_text or "非代理节点" not in yaml_text:

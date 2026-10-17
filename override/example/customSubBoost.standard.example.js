@@ -292,9 +292,6 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "美国节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/United_States.png",
     "type": "url-test",
-    "proxies": [
-      "DIRECT"
-    ],
     "include-all": true,
     "filter": "(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|United.?States|America",
     "exclude-filter": "(?i)Australia|俄罗斯|Russia|Belarus|巴西|Brazil",
@@ -307,9 +304,6 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "香港节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Hong_Kong.png",
     "type": "url-test",
-    "proxies": [
-      "DIRECT"
-    ],
     "include-all": true,
     "filter": "(?i)香港|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|Hong.?Kong|HKG",
     "url": "https://www.gstatic.com/generate_204",
@@ -321,9 +315,6 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "日本节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Japan.png",
     "type": "url-test",
-    "proxies": [
-      "DIRECT"
-    ],
     "include-all": true,
     "filter": "(?i)日本|东京|大阪|川日|沪日|深日|泉日|埼玉|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|Japan|Tokyo|Osaka",
     "url": "https://www.gstatic.com/generate_204",
@@ -335,9 +326,6 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "狮城节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Singapore.png",
     "type": "url-test",
-    "proxies": [
-      "DIRECT"
-    ],
     "include-all": true,
     "filter": "(?i)新加坡|狮城|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|Singapore",
     "url": "https://www.gstatic.com/generate_204",
@@ -349,9 +337,6 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "台湾节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Taiwan.png",
     "type": "url-test",
-    "proxies": [
-      "DIRECT"
-    ],
     "include-all": true,
     "filter": "(?i)台湾|台北|台中|新北|彰化|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|Taiwan|Taipei|Kaohsiung",
     "exclude-filter": "(?i)Network|Software|Westward",
@@ -364,9 +349,6 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "韩国节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Korea.png",
     "type": "url-test",
-    "proxies": [
-      "DIRECT"
-    ],
     "include-all": true,
     "filter": "(?i)韩国|首尔|韓|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)|Korea|KOR",
     "url": "https://www.gstatic.com/generate_204",
@@ -378,9 +360,6 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "其他国家",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/World_Map.png",
     "type": "select",
-    "proxies": [
-      "DIRECT"
-    ],
     "include-all": true,
     "exclude-filter": "(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|United.?States|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|香港|Hong.?Kong|HKG|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|日本|东京|大阪|川日|沪日|深日|泉日|埼玉|Japan|Tokyo|Osaka|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|新加坡|狮城|Singapore|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|台湾|台北|台中|新北|彰化|Taiwan|Taipei|Kaohsiung|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|韩国|首尔|韓|Korea|KOR|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)"
   },
