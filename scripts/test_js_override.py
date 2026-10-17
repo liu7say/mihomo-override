@@ -165,6 +165,10 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
       dnsPolicy: output.dns ? output.dns["nameserver-policy"] : {{}},
       nameserver: output.dns ? output.dns.nameserver : [],
       proxyServerNameserver: output.dns ? output.dns["proxy-server-nameserver"] : [],
+      directNameserver: output.dns ? output.dns["direct-nameserver"] : [],
+      ipv6: output.ipv6,
+      emptyIpv6: emptyOutput.ipv6,
+      regionGroupProxies: output["proxy-groups"].filter(g => g.type === "url-test" && g.filter).map(g => ({{ name: g.name, proxies: g.proxies }})),
       groupsExcludeFilters: output["proxy-groups"].map(g => ({{ name: g.name, excludeFilter: g["exclude-filter"] }})),
       testUrls: output["proxy-groups"].filter(g => g.url).map(g => ({{ name: g.name, url: g.url }})),
       rulesCount: output.rules.length,
@@ -224,15 +228,27 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
         "223.5.5.5",
         "119.29.29.29",
         "https://223.5.5.5/dns-query",
-    ], f"✘ [{tier}] proxy-server-nameserver 顺序或内容未优化为 UDP 优先 + DoH 兜底: {res['proxyServerNameserver']}"
+        "https://doh.pub/dns-query",
+    ], f"✘ [{tier}] proxy-server-nameserver 顺序或内容未优化为双 UDP 优先 + 双 DoH 兜底: {res['proxyServerNameserver']}"
+    assert res["directNameserver"] == [
+        "223.5.5.5",
+        "119.29.29.29",
+        "system",
+    ], f"✘ [{tier}] direct-nameserver 未加固为双 UDP + system 兜底: {res['directNameserver']}"
+    assert res["ipv6"] is False, f"✘ [{tier}] 顶层 config.ipv6 未显式设置为 false: {res['ipv6']}"
+    assert res["emptyIpv6"] is False, f"✘ [{tier}] 空输入时顶层 config.ipv6 未显式设置为 false: {res['emptyIpv6']}"
     assert res["nameserver"] == [
         "https://223.5.5.5/dns-query",
         "https://doh.pub/dns-query",
     ], f"✘ [{tier}] nameserver 未精简为双高可用 DoH: {res['nameserver']}"
 
-    # 核验轻量 204 HTTP 测速 URL 与策略组冗余正则精简
+    # 地区小策略组容灾保底检查 (验证 6 核心地区组均注入了「自动选择」保底项)
+    for rg in res.get("regionGroupProxies", []):
+        assert "自动选择" in (rg.get("proxies") or []), f"✘ [{tier}] 地区组 '{rg['name']}' 缺少容灾保底项 '自动选择': {rg.get('proxies')}"
+
+    # 核验工业级标准 204 HTTPS 测速 URL 与策略组冗余正则精简
     for tu in res.get("testUrls", []):
-        assert tu["url"] == "http://www.gstatic.com/generate_204", f"✘ [{tier}] 策略组 '{tu['name']}' 测速地址未优化为 http://... : {tu['url']}"
+        assert tu["url"] == "https://www.gstatic.com/generate_204", f"✘ [{tier}] 策略组 '{tu['name']}' 测速地址未更新为 https://... : {tu['url']}"
 
     groups_ef_map = {g["name"]: g.get("excludeFilter") for g in res.get("groupsExcludeFilters", [])}
 

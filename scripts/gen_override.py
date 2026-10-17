@@ -173,8 +173,8 @@ CAPTIVE_PORTAL_DOMAINS = [
     "+.connectivitycheck.platform.hicloud.com",
 ]
 
-# 基础测速参数默认值 (依据 PERFORMANCE.md 优化准则)
-DEFAULT_TEST_URL = "http://www.gstatic.com/generate_204"
+# 基础测速参数默认值 (依据工业级高可靠标准，采用 HTTPS 规避商业中转 RST 掐断)
+DEFAULT_TEST_URL = "https://www.gstatic.com/generate_204"
 DEFAULT_TEST_INTERVAL = 600      # 10 分钟一次，减少 50% 测速握手包
 DEFAULT_TEST_TOLERANCE = 50      # 50ms 切换容差阈值，消灭乒乓切换
 DEFAULT_TEST_LAZY = True         # 懒测速：无流量流经该组时不触发探测
@@ -523,6 +523,8 @@ def build_data_models(
                     "name": r["name"],
                     "icon": f"{icon_base}/{r['icon']}.png",
                     "type": "url-test",
+                    # 容灾保底代理项：保证地区节点清零或单点中转抖动时平滑回退，杜绝全核健康检查风暴 (双轨源头统一)
+                    "proxies": [auto_name],
                     "include-all": True,
                     "filter": r["filter"],
                     "exclude-filter": junk,
@@ -697,6 +699,7 @@ def build_yaml(groups: list[dict], providers: dict, pre_game: list[str], subboos
     w("#   · rules: 严格整段替换订阅自带旧规则，彻底避免 MATCH 截断死锁\n")
     w("# ==========================================================================\n\n")
 
+    w("ipv6: false\n\n")
     w("sniffer:\n")
     w("  enable: true\n")
     w("  parse-pure-ip: true\n")
@@ -951,6 +954,9 @@ function main(config) {
   config["rule-providers"] = (config["rule-providers"] && typeof config["rule-providers"] === "object") ? config["rule-providers"] : {};
   config.rules = Array.isArray(config.rules) ? config.rules : [];
 
+  // 顶层强制关闭 IPv6，彻底杜绝 Windows 无 IPv6 路由时的底层 connectex 10051 (unreachable network) 握手重试悬空
+  config.ipv6 = false;
+
   // 2. 嗅探配置 (sniffer) 注入
   config.sniffer = {
     enable: true,
@@ -1069,8 +1075,13 @@ function main(config) {
         "223.5.5.5",
         "119.29.29.29",
         "https://223.5.5.5/dns-query",
+        "https://doh.pub/dns-query",
       ],
-      "direct-nameserver": ["system"],
+      "direct-nameserver": [
+        "223.5.5.5",
+        "119.29.29.29",
+        "system",
+      ],
       "nameserver-policy": nameserverPolicy,
     };
   }
@@ -1087,6 +1098,23 @@ function main(config) {
       group.proxies = group.proxies.filter(name => !removedNames.has(name));
     }
   }
+
+  // 保护脆弱小地区策略组：容灾保底机制 (Linus: 好品味消除单点雪崩)
+  // 为 6 核心地区 url-test 策略组注入全局「自动选择」保底项
+  // 当地区节点筛选数极少（如台湾仅 3 节点）且发生单点中转超时，或节点数为 0（如韩国 0 节点）时，
+  // 内核可顺滑回退至「自动选择」，杜绝全核健康检查风暴与级联超时
+  const autoGroupName = "自动选择";
+  for (const group of groups) {
+    if (group.type === "url-test" && group.filter) {
+      if (!Array.isArray(group.proxies)) {
+        group.proxies = [];
+      }
+      if (!group.proxies.includes(autoGroupName)) {
+        group.proxies.push(autoGroupName);
+      }
+    }
+  }
+
   config["proxy-groups"] = groups;
 
   // ==========================================================================
@@ -1240,8 +1268,12 @@ def self_check_yaml(yaml_text: str, expected_provider_count: int = None) -> None
         raise ValueError(f"【严重错误】rule-providers 数量预期为 {expected_provider_count}，实测为 {provider_count}！")
     if provider_count == 0:
         raise ValueError("【严重错误】rule-providers 数量为 0！")
-    if "url: http://www.gstatic.com/generate_204" not in yaml_text:
-        raise ValueError("【严重错误】YAML 覆写中未采用轻量 http 测速 URL！")
+    if "url: https://www.gstatic.com/generate_204" not in yaml_text:
+        raise ValueError("【严重错误】YAML 覆写中未采用标准 https 测速 URL！")
+    if "ipv6: false" not in yaml_text:
+        raise ValueError("【严重错误】YAML 覆写中缺少顶层 ipv6: false 禁用语句！")
+    if "proxies: [自动选择]" not in yaml_text:
+        raise ValueError("【严重错误】YAML 覆写中地区组缺少 proxies: [自动选择] 容灾保底项！")
     if "剩余流量" not in yaml_text or "非代理节点" not in yaml_text:
         raise ValueError("【严重错误】YAML 覆写中未保留完整的 exclude-filter 垃圾过滤正则，破坏向后兼容！")
 
@@ -1256,10 +1288,14 @@ def self_check_js(js_text: str) -> None:
         raise ValueError("【严重错误】JS 覆写缺少策略组数据声明！")
     if "SUBBOOST_RULE_PROVIDERS" not in js_text:
         raise ValueError("【严重错误】JS 覆写缺少规则集数据声明！")
-    if '"http://www.gstatic.com/generate_204"' not in js_text:
-        raise ValueError("【严重错误】JS 覆写缺少轻量 http 测速 URL！")
-    if not re.search(r'"proxy-server-nameserver":\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"https://223\.5\.5\.5/dns-query",?\s*\]', js_text):
+    if '"https://www.gstatic.com/generate_204"' not in js_text:
+        raise ValueError("【严重错误】JS 覆写缺少标准 https 测速 URL！")
+    if "config.ipv6 = false;" not in js_text:
+        raise ValueError("【严重错误】JS 覆写缺少顶层 config.ipv6 = false 禁用语句！")
+    if not re.search(r'"proxy-server-nameserver":\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"https://223\.5\.5\.5/dns-query",\s*"https://doh\.pub/dns-query",?\s*\]', js_text):
         raise ValueError("【严重错误】JS 覆写缺少正确的 proxy-server-nameserver 顺序！")
+    if not re.search(r'"direct-nameserver":\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"system",?\s*\]', js_text):
+        raise ValueError("【严重错误】JS 覆写缺少高可用 direct-nameserver 配置！")
     if not re.search(r'nameserver:\s*\[\s*"https://223\.5\.5\.5/dns-query",\s*"https://doh\.pub/dns-query",?\s*\]', js_text):
         raise ValueError("【严重错误】JS 覆写缺少精简后的双高可用 nameserver！")
     groups_match = re.search(r'const SUBBOOST_PROXY_GROUPS = (\[.*?\]);\s*\n\s*const SUBBOOST_RULE_PROVIDERS', js_text, re.S)

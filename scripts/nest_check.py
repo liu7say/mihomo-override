@@ -38,7 +38,26 @@ DEFAULT_PRESET_TIERS = ["minimal", "standard", "full"]
 
 # 客户端测试运行环境探测
 ROOT = Path(os.environ.get("MIHOMO_PARTY_BASE") or (Path.home() / "AppData" / "Roaming" / "mihomo-party"))
-CORE = ROOT / "test" / "mihomo-test.exe"
+
+
+def find_mihomo_core() -> Path:
+    """自动探测本地 Mihomo / Clash 内核二进制。"""
+    candidates = [
+        ROOT / "test" / "mihomo-test.exe",
+        Path("C:/Program Files/Clash Party/resources/sidecar/mihomo.exe"),
+        Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Clash Party" / "resources" / "sidecar" / "mihomo.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "mihomo-party" / "resources" / "sidecar" / "mihomo.exe",
+    ]
+    which = shutil.which("mihomo")
+    if which:
+        candidates.append(Path(which))
+    for c in candidates:
+        if c.exists():
+            return c
+    return ROOT / "test" / "mihomo-test.exe"
+
+
+CORE = find_mihomo_core()
 API = "http://127.0.0.1:19102"
 SUBS = {"19f26ab99a3": "奈云", "1a0377776c2": "TAGMeta", "19e91d0a1b7": "Glados"}
 
@@ -82,9 +101,11 @@ def check_cycles_and_depth(groups_map: dict) -> tuple[list, dict, int]:
                 # 命中祖先节点，提取闭环路径
                 idx = stack.index(neighbor)
                 cycles.append(stack[idx:] + [neighbor])
-            elif color.get(neighbor) != 2:
-                d = dfs(neighbor, stack)
-                best = max(best, d)
+            else:
+                # 若未访问则递归深入；若已完成 (color=2) 则直接利用已计算出的记忆化深度
+                if color.get(neighbor) != 2:
+                    dfs(neighbor, stack)
+                best = max(best, depth.get(neighbor, 0))
 
         stack.pop()
         color[n] = 2

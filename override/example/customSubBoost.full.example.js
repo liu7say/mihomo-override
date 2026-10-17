@@ -90,7 +90,7 @@ const SUBBOOST_PROXY_GROUPS = [
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Auto.png",
     "type": "url-test",
     "include-all": true,
-    "url": "http://www.gstatic.com/generate_204",
+    "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -634,10 +634,13 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "美国节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/United_States.png",
     "type": "url-test",
+    "proxies": [
+      "自动选择"
+    ],
     "include-all": true,
     "filter": "(?i)美国|洛杉矶|纽约|西雅图|圣何塞|圣克拉拉|硅谷|拉斯维加斯|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|芝加哥|(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)|United.?States|America",
     "exclude-filter": "(?i)Australia|俄罗斯|Russia|Belarus|巴西|Brazil",
-    "url": "http://www.gstatic.com/generate_204",
+    "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -646,9 +649,12 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "香港节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Hong_Kong.png",
     "type": "url-test",
+    "proxies": [
+      "自动选择"
+    ],
     "include-all": true,
     "filter": "(?i)香港|(?:^|[^a-zA-Z])HK(?:[^a-zA-Z]|$)|Hong.?Kong|HKG",
-    "url": "http://www.gstatic.com/generate_204",
+    "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -657,9 +663,12 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "日本节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Japan.png",
     "type": "url-test",
+    "proxies": [
+      "自动选择"
+    ],
     "include-all": true,
     "filter": "(?i)日本|东京|大阪|川日|沪日|深日|泉日|埼玉|(?:^|[^a-zA-Z])JP(?:[^a-zA-Z]|$)|Japan|Tokyo|Osaka",
-    "url": "http://www.gstatic.com/generate_204",
+    "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -668,9 +677,12 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "狮城节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Singapore.png",
     "type": "url-test",
+    "proxies": [
+      "自动选择"
+    ],
     "include-all": true,
     "filter": "(?i)新加坡|狮城|(?:^|[^a-zA-Z])SG(?:[^a-zA-Z]|$)|Singapore",
-    "url": "http://www.gstatic.com/generate_204",
+    "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -679,10 +691,13 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "台湾节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Taiwan.png",
     "type": "url-test",
+    "proxies": [
+      "自动选择"
+    ],
     "include-all": true,
     "filter": "(?i)台湾|台北|台中|新北|彰化|(?:^|[^a-zA-Z])TW(?:[^a-zA-Z]|$)|Taiwan|Taipei|Kaohsiung",
     "exclude-filter": "(?i)Network|Software|Westward",
-    "url": "http://www.gstatic.com/generate_204",
+    "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -691,9 +706,12 @@ const SUBBOOST_PROXY_GROUPS = [
     "name": "韩国节点",
     "icon": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Korea.png",
     "type": "url-test",
+    "proxies": [
+      "自动选择"
+    ],
     "include-all": true,
     "filter": "(?i)韩国|首尔|韓|(?:^|[^a-zA-Z])KR(?:[^a-zA-Z]|$)|Korea|KOR",
-    "url": "http://www.gstatic.com/generate_204",
+    "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
     "lazy": true
@@ -1771,6 +1789,9 @@ function main(config) {
   config["rule-providers"] = (config["rule-providers"] && typeof config["rule-providers"] === "object") ? config["rule-providers"] : {};
   config.rules = Array.isArray(config.rules) ? config.rules : [];
 
+  // 顶层强制关闭 IPv6，彻底杜绝 Windows 无 IPv6 路由时的底层 connectex 10051 (unreachable network) 握手重试悬空
+  config.ipv6 = false;
+
   // 2. 嗅探配置 (sniffer) 注入
   config.sniffer = {
     enable: true,
@@ -1889,8 +1910,13 @@ function main(config) {
         "223.5.5.5",
         "119.29.29.29",
         "https://223.5.5.5/dns-query",
+        "https://doh.pub/dns-query",
       ],
-      "direct-nameserver": ["system"],
+      "direct-nameserver": [
+        "223.5.5.5",
+        "119.29.29.29",
+        "system",
+      ],
       "nameserver-policy": nameserverPolicy,
     };
   }
@@ -1907,6 +1933,23 @@ function main(config) {
       group.proxies = group.proxies.filter(name => !removedNames.has(name));
     }
   }
+
+  // 保护脆弱小地区策略组：容灾保底机制 (Linus: 好品味消除单点雪崩)
+  // 为 6 核心地区 url-test 策略组注入全局「自动选择」保底项
+  // 当地区节点筛选数极少（如台湾仅 3 节点）且发生单点中转超时，或节点数为 0（如韩国 0 节点）时，
+  // 内核可顺滑回退至「自动选择」，杜绝全核健康检查风暴与级联超时
+  const autoGroupName = "自动选择";
+  for (const group of groups) {
+    if (group.type === "url-test" && group.filter) {
+      if (!Array.isArray(group.proxies)) {
+        group.proxies = [];
+      }
+      if (!group.proxies.includes(autoGroupName)) {
+        group.proxies.push(autoGroupName);
+      }
+    }
+  }
+
   config["proxy-groups"] = groups;
 
   // ==========================================================================

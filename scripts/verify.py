@@ -41,7 +41,26 @@ REPO_ROOT = HERE.parent
 
 # 配置根目录：优先环境变量 MIHOMO_PARTY_BASE，缺省从用户环境动态推导
 ROOT = Path(os.environ.get("MIHOMO_PARTY_BASE") or (Path.home() / "AppData" / "Roaming" / "mihomo-party"))
-CORE_EXE = ROOT / "test" / "mihomo-test.exe"
+
+
+def find_mihomo_core() -> Path:
+    """自动探测本地 Mihomo / Clash 内核二进制。"""
+    candidates = [
+        ROOT / "test" / "mihomo-test.exe",
+        Path("C:/Program Files/Clash Party/resources/sidecar/mihomo.exe"),
+        Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Clash Party" / "resources" / "sidecar" / "mihomo.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "mihomo-party" / "resources" / "sidecar" / "mihomo.exe",
+    ]
+    which = shutil.which("mihomo")
+    if which:
+        candidates.append(Path(which))
+    for c in candidates:
+        if c.exists():
+            return c
+    return ROOT / "test" / "mihomo-test.exe"
+
+
+CORE_EXE = find_mihomo_core()
 SB = ROOT / "test" / "_sb"
 OUT = SB / "verify"
 
