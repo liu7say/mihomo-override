@@ -162,6 +162,42 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     const noKrSelectProxies = noKrSelectGroup ? noKrSelectGroup.proxies : [];
     const noKrAllGroupProxies = noKrOutput["proxy-groups"].flatMap(g => Array.isArray(g.proxies) ? g.proxies : []);
 
+    // 嗅探器非侵入式深合并测试
+    const snifferInput = JSON.parse(JSON.stringify(mockInput));
+    snifferInput.sniffer = {{
+      "skip-domain": ["custom.lan", "+.apple.com"],
+      "force-domain": ["force.lan"],
+      sniff: {{
+        TLS: {{ ports: [443, 9443], "sniff-mode": "strict" }}
+      }}
+    }};
+    const snifferOutput = main(snifferInput);
+
+    // cleanProxies 为空时的保守放行测试 (例如 proxy-providers 外部节点池场景)
+    const emptyProxiesInput = {{
+      proxies: [],
+      "proxy-providers": {{ test_provider: {{ type: "http", url: "http://example.com" }} }}
+    }};
+    const emptyProxiesOutput = main(emptyProxiesInput);
+    const emptyProxiesGroupNames = emptyProxiesOutput["proxy-groups"].map(g => g.name);
+
+    // 全高倍率兜底测试 (所有节点均超倍率时降级保留有效节点，坚决杜绝断网)
+    const allHighMultInput = {{
+      proxies: [
+        {{ name: "🇺🇸 美国 01 2x", type: "ss", server: "1.1.1.1", port: 443 }},
+        {{ name: "🇭🇰 香港 02 [x3]", type: "ss", server: "1.1.1.2", port: 443 }},
+        {{ name: "到期时间: 2026-12-31", type: "ss", server: "1.1.1.3", port: 443 }},
+      ]
+    }};
+    const allHighMultOutput = main(allHighMultInput);
+    const allHighMultRemaining = allHighMultOutput.proxies.map(p => p.name);
+
+    // DNS Fallback 动态启用仿真测试
+    CONFIG.enableDnsFallback = true;
+    CONFIG.dnsFallbackProxy = "节点选择";
+    const fallbackOutput = main(JSON.parse(JSON.stringify(mockInput)));
+    CONFIG.enableDnsFallback = false;
+
     console.log(JSON.stringify({{
       remainingProxies: remainingProxies,
       groupsCount: groupsCount,
@@ -178,11 +214,13 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
       nameserver: output.dns ? output.dns.nameserver : [],
       proxyServerNameserver: output.dns ? output.dns["proxy-server-nameserver"] : [],
       directNameserver: output.dns ? output.dns["direct-nameserver"] : [],
+      directNameserverFollowPolicy: output.dns ? output.dns["direct-nameserver-follow-policy"] : null,
       ipv6: output.ipv6,
       emptyIpv6: emptyOutput.ipv6,
       regionGroupProxies: output["proxy-groups"].filter(g => g.type === "url-test" && g.filter).map(g => ({{ name: g.name, proxies: g.proxies }})),
       groupsExcludeFilters: output["proxy-groups"].map(g => ({{ name: g.name, excludeFilter: g["exclude-filter"] }})),
       testUrls: output["proxy-groups"].filter(g => g.url).map(g => ({{ name: g.name, url: g.url }})),
+      urlTestTimeouts: output["proxy-groups"].filter(g => g.type === "url-test").map(g => ({{ name: g.name, timeout: g.timeout }})),
       rulesCount: output.rules.length,
       rulesTop: output.rules.slice(0, 20),
       rulesBottom: output.rules.slice(-3),
@@ -194,6 +232,11 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
       noKrSelectHasKorea: noKrSelectProxies.includes("韩国节点"),
       noKrAnyGroupHasKorea: noKrAllGroupProxies.includes("韩国节点"),
       noKrGroupsCount: noKrOutput["proxy-groups"].length,
+      mergedSniffer: snifferOutput.sniffer,
+      hasAllRegionsOnEmptyProxies: ["香港节点", "日本节点", "美国节点", "韩国节点"].every(name => emptyProxiesGroupNames.includes(name)),
+      allHighMultRemaining: allHighMultRemaining,
+      fallbackDns: fallbackOutput.dns ? fallbackOutput.dns.fallback : null,
+      fallbackFilter: fallbackOutput.dns ? fallbackOutput.dns["fallback-filter"] : null,
     }}));
     """
 
@@ -329,7 +372,55 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
             tgt = parts[2]
             assert tgt in group_names, f"✘ [{tier}] 规则 '{r}' 的目标策略组 '{tgt}' 未在 proxy-groups 中声明！"
 
-    print(f"  [✔] {tier.upper()} 档位 10 项断言全部通过 (策略组 {res['groupsCount']} 组, 规则集 {res['providersCount']} 个, 规则链 {res['rulesCount']} 条)")
+    # 断言 11: 嗅探器深合并非侵入式验证 (保留自定义域名与未冲突扩展配置)
+    ms = res["mergedSniffer"]
+    assert ms.get("enable") is True, f"✘ [{tier}] sniffer.enable 未强制设为 true: {ms}"
+    assert ms.get("parse-pure-ip") is True, f"✘ [{tier}] sniffer.parse-pure-ip 未强制设为 true: {ms}"
+    assert ms.get("skip-domain") == ["custom.lan", "+.apple.com"], f"✘ [{tier}] sniffer 自定义 skip-domain 丢失: {ms.get('skip-domain')}"
+    assert ms.get("force-domain") == ["force.lan"], f"✘ [{tier}] sniffer 自定义 force-domain 丢失: {ms.get('force-domain')}"
+    assert ms["sniff"]["TLS"]["ports"] == [443, 8443], f"✘ [{tier}] sniffer.sniff.TLS.ports 未强制接管为 [443, 8443]: {ms['sniff']['TLS']}"
+    assert ms["sniff"]["TLS"].get("sniff-mode") == "strict", f"✘ [{tier}] sniffer.sniff.TLS 自定义字段 sniff-mode 丢失: {ms['sniff']['TLS']}"
+    assert ms["sniff"]["HTTP"]["ports"] == [80, "8080-8880"], f"✘ [{tier}] sniffer.sniff.HTTP.ports 异常: {ms['sniff']['HTTP']}"
+
+    # 断言 12: 节点池为空时保守放行全部地区组 (解决 proxy-providers 误杀)
+    assert res["hasAllRegionsOnEmptyProxies"] is True, f"✘ [{tier}] proxies 为空时核心地区组被错误全量剔除！"
+
+    # 断言 13: 全高倍率节点回退兜底 (Never break userspace)
+    ah_rem = res["allHighMultRemaining"]
+    assert "到期时间: 2026-12-31" not in ah_rem, f"✘ [{tier}] 全高倍率回退时垃圾公告节点未被过滤！"
+    assert "🇺🇸 美国 01 2x" in ah_rem and "🇭🇰 香港 02 [x3]" in ah_rem, f"✘ [{tier}] 全高倍率节点回退兜底失败，节点被完全清空导致断网: {ah_rem}"
+
+    # 断言 14: nameserver-policy 独立键拆分与无逗号键污染
+    dns_pol = res["dnsPolicy"]
+    captive_keys = [
+        "+.captive.apple.com",
+        "+.msftconnecttest.com",
+        "+.connect.rom.miui.com",
+        "+.connectivitycheck.platform.hicloud.com",
+    ]
+    for ck in captive_keys:
+        assert ck in dns_pol, f"✘ [{tier}] nameserver-policy 缺少独立键 '{ck}'！"
+        assert dns_pol[ck] == ["119.29.29.29", "223.5.5.5"], f"✘ [{tier}] 键 '{ck}' 的 DNS 服务器未配置为双公网 UDP: {dns_pol[ck]}"
+    assert not any("," in k for k in dns_pol), f"✘ [{tier}] nameserver-policy 仍残留逗号聚合键污染！{list(dns_pol.keys())}"
+
+    # 断言 15: direct-nameserver-follow-policy 显式启用
+    assert res["directNameserverFollowPolicy"] is True, f"✘ [{tier}] direct-nameserver-follow-policy 未显式配置为 true！"
+
+    # 断言 16: 全量 url-test 策略组健康检查超时 timeout 统一注入为 8000ms
+    timeouts = res["urlTestTimeouts"]
+    for ut in timeouts:
+        assert ut.get("timeout") == 8000, f"✘ [{tier}] 策略组 '{ut['name']}' timeout 未配置为 8000: {ut.get('timeout')}"
+
+    # 断言 17: enableDnsFallback 动态开启验证 (纯 IP DoH 经由指定代理策略组，无死锁)
+    fb_dns = res["fallbackDns"]
+    fb_filter = res["fallbackFilter"]
+    assert fb_dns == [
+        "https://1.0.0.1/dns-query#节点选择",
+        "https://8.8.4.4/dns-query#节点选择",
+    ], f"✘ [{tier}] enableDnsFallback 开启时 fallback 列表异常: {fb_dns}"
+    assert fb_filter and fb_filter.get("geoip") is True and fb_filter.get("geoip-code") == "CN", f"✘ [{tier}] fallback-filter 配置异常: {fb_filter}"
+
+    print(f"  [✔] {tier.upper()} 档位 17 项断言全部通过 (策略组 {res['groupsCount']} 组, 规则集 {res['providersCount']} 个, 规则链 {res['rulesCount']} 条)")
 
 
 def main() -> int:

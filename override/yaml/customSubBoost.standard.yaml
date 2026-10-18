@@ -39,6 +39,7 @@ proxy-groups:
     interval: 600
     tolerance: 50
     lazy: true
+    timeout: 8000
 
   - name: "手动切换"
     icon: https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available_1.png
@@ -111,6 +112,7 @@ proxy-groups:
     interval: 600
     tolerance: 50
     lazy: true
+    timeout: 8000
 
   - name: "香港节点"
     icon: https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Hong_Kong.png
@@ -122,6 +124,7 @@ proxy-groups:
     interval: 600
     tolerance: 50
     lazy: true
+    timeout: 8000
 
   - name: "日本节点"
     icon: https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Japan.png
@@ -133,6 +136,7 @@ proxy-groups:
     interval: 600
     tolerance: 50
     lazy: true
+    timeout: 8000
 
   - name: "狮城节点"
     icon: https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Singapore.png
@@ -144,6 +148,7 @@ proxy-groups:
     interval: 600
     tolerance: 50
     lazy: true
+    timeout: 8000
 
   - name: "台湾节点"
     icon: https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Taiwan.png
@@ -155,6 +160,7 @@ proxy-groups:
     interval: 600
     tolerance: 50
     lazy: true
+    timeout: 8000
 
   - name: "韩国节点"
     icon: https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Korea.png
@@ -166,6 +172,7 @@ proxy-groups:
     interval: 600
     tolerance: 50
     lazy: true
+    timeout: 8000
 
   - name: "其他国家"
     icon: https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/World_Map.png

@@ -6,7 +6,8 @@
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
-    "lazy": true
+    "lazy": true,
+    "timeout": 8000
   },
   "modules": {
     "ai": {

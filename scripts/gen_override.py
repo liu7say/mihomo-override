@@ -178,6 +178,7 @@ DEFAULT_TEST_URL = "https://www.gstatic.com/generate_204"
 DEFAULT_TEST_INTERVAL = 600      # 10 分钟一次，减少 50% 测速握手包
 DEFAULT_TEST_TOLERANCE = 50      # 50ms 切换容差阈值，消灭乒乓切换
 DEFAULT_TEST_LAZY = True         # 懒测速：无流量流经该组时不触发探测
+DEFAULT_TEST_TIMEOUT = 8000      # 默认节点测速超时时间（毫秒），给弱网/跨海线路充裕响应窗口
 
 # 规则集基础 CDN 地址与预设映射 (fastly 国内直连高可用，无 TLS 重协商断流)
 DEFAULT_CDN_HOST = "fastly.jsdelivr.net"
@@ -461,6 +462,7 @@ def load_rules_profile() -> tuple[set[str], dict]:
             "interval": DEFAULT_TEST_INTERVAL,
             "tolerance": DEFAULT_TEST_TOLERANCE,
             "lazy": DEFAULT_TEST_LAZY,
+            "timeout": DEFAULT_TEST_TIMEOUT,
         }
         return enabled, test_opts
 
@@ -471,6 +473,7 @@ def load_rules_profile() -> tuple[set[str], dict]:
         "interval": test_opts.get("interval", DEFAULT_TEST_INTERVAL),
         "tolerance": test_opts.get("tolerance", DEFAULT_TEST_TOLERANCE),
         "lazy": test_opts.get("lazy", DEFAULT_TEST_LAZY),
+        "timeout": test_opts.get("timeout", DEFAULT_TEST_TIMEOUT),
     }
 
     modules_cfg = data.get("modules") or {}
@@ -530,6 +533,7 @@ def build_data_models(
                     "interval": test_opts["interval"],
                     "tolerance": test_opts["tolerance"],
                     "lazy": test_opts["lazy"],
+                    "timeout": test_opts["timeout"],
                 })
             o = OTHER_REGION
             groups.append({
@@ -559,6 +563,7 @@ def build_data_models(
                 "interval": test_opts["interval"],
                 "tolerance": test_opts["tolerance"],
                 "lazy": test_opts["lazy"],
+                "timeout": test_opts["timeout"],
             })
             if mid == "auto":
                 groups.append({
@@ -726,6 +731,8 @@ def build_yaml(groups: list[dict], providers: dict, pre_game: list[str], subboos
             w(f"    tolerance: {g['tolerance']}\n")
         if "lazy" in g:
             w(f"    lazy: {'true' if g['lazy'] else 'false'}\n")
+        if "timeout" in g:
+            w(f"    timeout: {g['timeout']}\n")
         w("\n")
 
     w("# 全部规则集：MetaCubeX meta-rules-dat，.mrs 二进制，24 小时自动更新\n")
@@ -817,7 +824,9 @@ def build_all_in_one_js(
     w("  // ── 1. 基础功能开关 ──\n")
     w("  enableDnsOverride: true,          // 是否接管并覆盖系统/订阅自带 DNS (Fake-IP + DoH)\n")
     w("  enableLanDirect: true,            // 是否注入局域网直连 (10/8, 172.16/12, 192.168/16, 127/8 等)\n")
-    w("  enableFakeIpFilterSteam: true,    // Steam 握手与下载是否直解真实国内 IP (保持 IPCountry=CN)\n\n")
+    w("  enableFakeIpFilterSteam: true,    // Steam 握手与下载是否直解真实国内 IP (保持 IPCountry=CN)\n")
+    w("  enableDnsFallback: false,         // 是否启用境外 DNS Fallback 解析 (默认关闭做基准对照；开启后经代理策略组访问 Cloudflare/Google DoH)\n")
+    w('  dnsFallbackProxy: "节点选择",      // Fallback 境外 DoH 请求转发策略组 (经由确定性代理节点出海，杜绝自动切换抖动)\n\n')
 
     w("  // ── 2. 规则集与图标拉取策略 (解决冷启动 EOF 与代理死锁) ──\n")
     w('  ruleProviderProxy: "DIRECT",     // 规则集拉取通道："DIRECT"（推荐，彻底规避冷启动死锁）或 "节点选择"\n')
@@ -954,14 +963,18 @@ function main(config) {
   // 顶层强制关闭 IPv6，彻底杜绝 Windows 无 IPv6 路由时的底层 connectex 10051 (unreachable network) 握手重试悬空
   config.ipv6 = false;
 
-  // 2. 嗅探配置 (sniffer) 注入
+  // 2. 嗅探配置 (sniffer) 非侵入式深合并 (保留原有 skip-domain/force-domain 等自定义设置，仅强制接管核心端口与开关)
+  const rawSniffer = (config.sniffer && typeof config.sniffer === "object") ? config.sniffer : {};
+  const rawSniff = (rawSniffer.sniff && typeof rawSniffer.sniff === "object") ? rawSniffer.sniff : {};
   config.sniffer = {
+    ...rawSniffer,
     enable: true,
     "parse-pure-ip": true,
     sniff: {
-      TLS: { ports: [443, 8443] },
-      HTTP: { ports: [80, "8080-8880"], "override-destination": true },
-      QUIC: { ports: [443, 8443] },
+      ...rawSniff,
+      TLS: { ...(rawSniff.TLS || {}), ports: [443, 8443] },
+      HTTP: { ...(rawSniff.HTTP || {}), ports: [80, "8080-8880"], "override-destination": true },
+      QUIC: { ...(rawSniff.QUIC || {}), ports: [443, 8443] },
     },
   };
 
@@ -1042,11 +1055,13 @@ function main(config) {
       }
     }
 
+    // 连通性探测域名独立键映射（拆分为独立键，确保 Go 底层 Trie 树精确匹配生效）
+    const captiveDns = ["119.29.29.29", "223.5.5.5"];
     const nameserverPolicy = {
-      "+.captive.apple.com,+.msftconnecttest.com,+.connect.rom.miui.com,+.connectivitycheck.platform.hicloud.com": [
-        "119.29.29.29",
-        "223.5.5.5",
-      ],
+      "+.captive.apple.com": captiveDns,
+      "+.msftconnecttest.com": captiveDns,
+      "+.connect.rom.miui.com": captiveDns,
+      "+.connectivitycheck.platform.hicloud.com": captiveDns,
     };
 
     if (CONFIG.enableWorkRules && CONFIG.workNameserverPolicy) {
@@ -1081,8 +1096,23 @@ function main(config) {
         "119.29.29.29",
         "system",
       ],
+      "direct-nameserver-follow-policy": true,
       "nameserver-policy": nameserverPolicy,
     };
+
+    // 动态启用境外 DNS Fallback（纯 IP DoH 经由指定代理策略组，杜绝域名预解析死循环）
+    if (CONFIG.enableDnsFallback) {
+      const fbProxy = CONFIG.dnsFallbackProxy || "节点选择";
+      config.dns.fallback = [
+        `https://1.0.0.1/dns-query#${fbProxy}`,
+        `https://8.8.4.4/dns-query#${fbProxy}`,
+      ];
+      config.dns["fallback-filter"] = {
+        geoip: true,
+        "geoip-code": "CN",
+        ipcidr: ["240.0.0.0/4", "0.0.0.0/32"],
+      };
+    }
   }
 
   // ==========================================================================
@@ -1095,17 +1125,25 @@ function main(config) {
   const groups = [];
   for (const group of rawGroups) {
     if (group.type === "url-test" && group.filter) {
+      // 防御性安全底线：若当前配置完全未显式提供节点（如仅依赖外部 proxy-providers），保守保留所有地区组，避免误杀全量策略组
+      if (cleanProxies.length === 0) {
+        groups.push(group);
+        continue;
+      }
+
       const cleanFilter = group.filter.replace(/^\\(\\?i\\)/, "");
       const cleanExclude = group["exclude-filter"] ? group["exclude-filter"].replace(/^\\(\\?i\\)/, "") : null;
       let filterRe = null;
       let excludeRe = null;
+      let regexValid = false;
       try {
         filterRe = new RegExp(cleanFilter, "i");
         excludeRe = cleanExclude ? new RegExp(cleanExclude, "i") : null;
+        regexValid = true;
       } catch (e) {
-        // 若正则表达式解析异常，作为防御性安全跳过
+        // 若正则表达式编译异常，作为防御性安全跳过（保留策略组，严禁因正则异常误杀正常地区组）
       }
-      const hasNodes = filterRe && cleanProxies.some(p => {
+      const hasNodes = !regexValid || cleanProxies.some(p => {
         if (!p || typeof p.name !== "string") return false;
         return filterRe.test(p.name) && (!excludeRe || !excludeRe.test(p.name));
       });

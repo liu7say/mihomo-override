@@ -27,6 +27,8 @@ const CONFIG = {
   enableDnsOverride: true,          // 是否接管并覆盖系统/订阅自带 DNS (Fake-IP + DoH)
   enableLanDirect: true,            // 是否注入局域网直连 (10/8, 172.16/12, 192.168/16, 127/8 等)
   enableFakeIpFilterSteam: true,    // Steam 握手与下载是否直解真实国内 IP (保持 IPCountry=CN)
+  enableDnsFallback: false,         // 是否启用境外 DNS Fallback 解析 (默认关闭做基准对照；开启后经代理策略组访问 Cloudflare/Google DoH)
+  dnsFallbackProxy: "节点选择",      // Fallback 境外 DoH 请求转发策略组 (经由确定性代理节点出海，杜绝自动切换抖动)
 
   // ── 2. 规则集与图标拉取策略 (解决冷启动 EOF 与代理死锁) ──
   ruleProviderProxy: "DIRECT",     // 规则集拉取通道："DIRECT"（推荐，彻底规避冷启动死锁）或 "节点选择"
@@ -93,7 +95,8 @@ const SUBBOOST_PROXY_GROUPS = [
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
-    "lazy": true
+    "lazy": true,
+    "timeout": 8000
   },
   {
     "name": "手动切换",
@@ -640,7 +643,8 @@ const SUBBOOST_PROXY_GROUPS = [
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
-    "lazy": true
+    "lazy": true,
+    "timeout": 8000
   },
   {
     "name": "香港节点",
@@ -651,7 +655,8 @@ const SUBBOOST_PROXY_GROUPS = [
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
-    "lazy": true
+    "lazy": true,
+    "timeout": 8000
   },
   {
     "name": "日本节点",
@@ -662,7 +667,8 @@ const SUBBOOST_PROXY_GROUPS = [
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
-    "lazy": true
+    "lazy": true,
+    "timeout": 8000
   },
   {
     "name": "狮城节点",
@@ -673,7 +679,8 @@ const SUBBOOST_PROXY_GROUPS = [
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
-    "lazy": true
+    "lazy": true,
+    "timeout": 8000
   },
   {
     "name": "台湾节点",
@@ -685,7 +692,8 @@ const SUBBOOST_PROXY_GROUPS = [
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
-    "lazy": true
+    "lazy": true,
+    "timeout": 8000
   },
   {
     "name": "韩国节点",
@@ -696,7 +704,8 @@ const SUBBOOST_PROXY_GROUPS = [
     "url": "https://www.gstatic.com/generate_204",
     "interval": 600,
     "tolerance": 50,
-    "lazy": true
+    "lazy": true,
+    "timeout": 8000
   },
   {
     "name": "其他国家",
@@ -1771,14 +1780,18 @@ function main(config) {
   // 顶层强制关闭 IPv6，彻底杜绝 Windows 无 IPv6 路由时的底层 connectex 10051 (unreachable network) 握手重试悬空
   config.ipv6 = false;
 
-  // 2. 嗅探配置 (sniffer) 注入
+  // 2. 嗅探配置 (sniffer) 非侵入式深合并 (保留原有 skip-domain/force-domain 等自定义设置，仅强制接管核心端口与开关)
+  const rawSniffer = (config.sniffer && typeof config.sniffer === "object") ? config.sniffer : {};
+  const rawSniff = (rawSniffer.sniff && typeof rawSniffer.sniff === "object") ? rawSniffer.sniff : {};
   config.sniffer = {
+    ...rawSniffer,
     enable: true,
     "parse-pure-ip": true,
     sniff: {
-      TLS: { ports: [443, 8443] },
-      HTTP: { ports: [80, "8080-8880"], "override-destination": true },
-      QUIC: { ports: [443, 8443] },
+      ...rawSniff,
+      TLS: { ...(rawSniff.TLS || {}), ports: [443, 8443] },
+      HTTP: { ...(rawSniff.HTTP || {}), ports: [80, "8080-8880"], "override-destination": true },
+      QUIC: { ...(rawSniff.QUIC || {}), ports: [443, 8443] },
     },
   };
 
@@ -1859,11 +1872,13 @@ function main(config) {
       }
     }
 
+    // 连通性探测域名独立键映射（拆分为独立键，确保 Go 底层 Trie 树精确匹配生效）
+    const captiveDns = ["119.29.29.29", "223.5.5.5"];
     const nameserverPolicy = {
-      "+.captive.apple.com,+.msftconnecttest.com,+.connect.rom.miui.com,+.connectivitycheck.platform.hicloud.com": [
-        "119.29.29.29",
-        "223.5.5.5",
-      ],
+      "+.captive.apple.com": captiveDns,
+      "+.msftconnecttest.com": captiveDns,
+      "+.connect.rom.miui.com": captiveDns,
+      "+.connectivitycheck.platform.hicloud.com": captiveDns,
     };
 
     if (CONFIG.enableWorkRules && CONFIG.workNameserverPolicy) {
@@ -1898,8 +1913,23 @@ function main(config) {
         "119.29.29.29",
         "system",
       ],
+      "direct-nameserver-follow-policy": true,
       "nameserver-policy": nameserverPolicy,
     };
+
+    // 动态启用境外 DNS Fallback（纯 IP DoH 经由指定代理策略组，杜绝域名预解析死循环）
+    if (CONFIG.enableDnsFallback) {
+      const fbProxy = CONFIG.dnsFallbackProxy || "节点选择";
+      config.dns.fallback = [
+        `https://1.0.0.1/dns-query#${fbProxy}`,
+        `https://8.8.4.4/dns-query#${fbProxy}`,
+      ];
+      config.dns["fallback-filter"] = {
+        geoip: true,
+        "geoip-code": "CN",
+        ipcidr: ["240.0.0.0/4", "0.0.0.0/32"],
+      };
+    }
   }
 
   // ==========================================================================
@@ -1912,17 +1942,25 @@ function main(config) {
   const groups = [];
   for (const group of rawGroups) {
     if (group.type === "url-test" && group.filter) {
+      // 防御性安全底线：若当前配置完全未显式提供节点（如仅依赖外部 proxy-providers），保守保留所有地区组，避免误杀全量策略组
+      if (cleanProxies.length === 0) {
+        groups.push(group);
+        continue;
+      }
+
       const cleanFilter = group.filter.replace(/^\(\?i\)/, "");
       const cleanExclude = group["exclude-filter"] ? group["exclude-filter"].replace(/^\(\?i\)/, "") : null;
       let filterRe = null;
       let excludeRe = null;
+      let regexValid = false;
       try {
         filterRe = new RegExp(cleanFilter, "i");
         excludeRe = cleanExclude ? new RegExp(cleanExclude, "i") : null;
+        regexValid = true;
       } catch (e) {
-        // 若正则表达式解析异常，作为防御性安全跳过
+        // 若正则表达式编译异常，作为防御性安全跳过（保留策略组，严禁因正则异常误杀正常地区组）
       }
-      const hasNodes = filterRe && cleanProxies.some(p => {
+      const hasNodes = !regexValid || cleanProxies.some(p => {
         if (!p || typeof p.name !== "string") return false;
         return filterRe.test(p.name) && (!excludeRe || !excludeRe.test(p.name));
       });
