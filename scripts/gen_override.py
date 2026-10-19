@@ -324,7 +324,9 @@ PRE_GAME_RULES = [
     "DOMAIN,steamstore-a.akamaihd.net,Steam",
     "DOMAIN,steamcommunity-a.akamaihd.net,Steam",
     "DOMAIN,steamuserimages-a.akamaihd.net,Steam",
-    "# === 2. 全平台游戏下载与 Steam 区服握手直连（保持 IPCountry = CN） ===",
+    "# === 2. Steam Pipe 国内高速下载 CDN (Akamai 专属分流，严禁泛域名直连) ===",
+    "DOMAIN-SUFFIX,steampipe-sc.akamaized.net,国内服务",
+    "# === 3. 全平台游戏下载与 Steam 区服握手直连（保持 IPCountry = CN） ===",
     "RULE-SET,category-games-cn,国内服务",
     "DOMAIN-SUFFIX,cm.steampowered.com,国内服务",
     "DOMAIN-SUFFIX,steamserver.net,国内服务",
@@ -1287,6 +1289,8 @@ def self_check_yaml(yaml_text: str, expected_provider_count: int = None) -> None
         raise ValueError("【严重错误】未找到 'rules:' 声明！严禁遗漏整段覆盖的 rules:")
     if "category-games-cn" not in yaml_text:
         raise ValueError("【严重错误】未找到 'category-games-cn' 游戏前置直连规则！")
+    if "steampipe-sc.akamaized.net" not in yaml_text:
+        raise ValueError("【严重错误】未找到 'steampipe-sc.akamaized.net' 游戏前置直连规则！")
     if r"(?:^|[^a-zA-Z])US(?:[^a-zA-Z]|$)" not in yaml_text:
         raise ValueError("【严重错误】美国组缺少 NB(US) 非字母边界正则！")
 
@@ -1363,6 +1367,8 @@ def self_check_js(js_text: str) -> None:
         groups_json = groups_match.group(1)
         if "剩余流量" in groups_json or "非代理节点" in groups_json:
             raise ValueError("【严重错误】JS 策略组中残留冗余垃圾节点特征正则！")
+    if "steampipe-sc.akamaized.net" not in js_text:
+        raise ValueError("【严重错误】JS 覆写缺少 'steampipe-sc.akamaized.net' 游戏前置直连规则！")
 
     # 利用本地 Node.js 进行 JavaScript 语法树静态校验
     try:

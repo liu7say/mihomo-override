@@ -265,6 +265,7 @@ rules:
 - DOMAIN,steamstore-a.akamaihd.net,节点选择
 - DOMAIN,steamcommunity-a.akamaihd.net,节点选择
 - DOMAIN,steamuserimages-a.akamaihd.net,节点选择
+- DOMAIN-SUFFIX,steampipe-sc.akamaized.net,国内服务
 - RULE-SET,category-games-cn,国内服务
 - DOMAIN-SUFFIX,cm.steampowered.com,国内服务
 - DOMAIN-SUFFIX,steamserver.net,国内服务

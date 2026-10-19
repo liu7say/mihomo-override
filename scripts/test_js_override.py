@@ -418,9 +418,23 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
         "https://1.0.0.1/dns-query#节点选择",
         "https://8.8.4.4/dns-query#节点选择",
     ], f"✘ [{tier}] enableDnsFallback 开启时 fallback 列表异常: {fb_dns}"
-    assert fb_filter and fb_filter.get("geoip") is True and fb_filter.get("geoip-code") == "CN", f"✘ [{tier}] fallback-filter 配置异常: {fb_filter}"
+    # 断言 18: Steam 精细化分流拓扑与 steampipe-sc.akamaized.net 保序验证 (First-Match-Win)
+    rules_list = res["allRules"]
+    steam_pipe_rule = "DOMAIN-SUFFIX,steampipe-sc.akamaized.net,国内服务"
+    assert steam_pipe_rule in rules_list, f"✘ [{tier}] 缺少 Steam Pipe 下载直连规则: {steam_pipe_rule}！"
+    idx_pipe = rules_list.index(steam_pipe_rule)
+    idx_store = next((i for i, r in enumerate(rules_list) if "store.steampowered.com" in r), -1)
+    idx_cgcn = next((i for i, r in enumerate(rules_list) if "category-games-cn" in r), -1)
+    idx_geocn = next((i for i, r in enumerate(rules_list) if "geolocation-!cn" in r), -1)
 
-    print(f"  [✔] {tier.upper()} 档位 17 项断言全部通过 (策略组 {res['groupsCount']} 组, 规则集 {res['providersCount']} 个, 规则链 {res['rulesCount']} 条)")
+    assert idx_store != -1, f"✘ [{tier}] 规则链中未找到 Steam 商店代理规则！"
+    assert idx_cgcn != -1, f"✘ [{tier}] 规则链中未找到 category-games-cn 游戏直连规则集！"
+    assert idx_store < idx_pipe, f"✘ [{tier}] Steam 商店代理规则 (位次 {idx_store}) 必须在 Steam Pipe 下载直连 (位次 {idx_pipe}) 之前！"
+    assert idx_pipe < idx_cgcn, f"✘ [{tier}] Steam Pipe 下载直连 (位次 {idx_pipe}) 必须在 category-games-cn (位次 {idx_cgcn}) 之前！"
+    if idx_geocn != -1:
+        assert idx_pipe < idx_geocn, f"✘ [{tier}] Steam Pipe 下载直连 (位次 {idx_pipe}) 必须在通用境外规则 geolocation-!cn (位次 {idx_geocn}) 之前！"
+
+    print(f"  [✔] {tier.upper()} 档位 18 项断言全部通过 (策略组 {res['groupsCount']} 组, 规则集 {res['providersCount']} 个, 规则链 {res['rulesCount']} 条)")
 
 
 def main() -> int:

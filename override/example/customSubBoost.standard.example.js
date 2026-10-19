@@ -638,6 +638,7 @@ const SUBBOOST_PRE_GAME_RULES = [
   "DOMAIN,steamstore-a.akamaihd.net,Steam",
   "DOMAIN,steamcommunity-a.akamaihd.net,Steam",
   "DOMAIN,steamuserimages-a.akamaihd.net,Steam",
+  "DOMAIN-SUFFIX,steampipe-sc.akamaized.net,国内服务",
   "RULE-SET,category-games-cn,国内服务",
   "DOMAIN-SUFFIX,cm.steampowered.com,国内服务",
   "DOMAIN-SUFFIX,steamserver.net,国内服务",
