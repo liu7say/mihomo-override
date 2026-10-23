@@ -126,9 +126,9 @@
 3. **IPv6 幽灵重试延时**：Windows 环境在缺少有效 IPv6 路由时，Go `net.Dial` 仍优先尝试 IPv6 连接，持续在底层抛出 `connectex 10051 (unreachable network)`，白白引入数秒握手悬空挂起。
 
 #### 【已落地优化方案】
-1. **代理解析与主 DNS 链路双 UDP 优先 + 双 DoH 兜底**：
-   - 主 `nameserver` 与 `proxy-server-nameserver` 统一配置为：`["223.5.5.5", "119.29.29.29", "https://223.5.5.5/dns-query", "https://doh.pub/dns-query"]`；
-   - 阿里与腾讯双国内直连高效 UDP 在 2~5ms 内竞速秒解，超大报文或网络劣化时由双高可用 DoH 自动兜底，彻底消除 TCP 握手队列占满时的 DoH 单点超时与解析挂起。
+1. **代理解析与主 DNS 链路双 UDP 优先 + 单 IP DoH 兜底**：
+   - 主 `nameserver` 与 `proxy-server-nameserver` 统一配置为：`["223.5.5.5", "119.29.29.29", "https://223.5.5.5/dns-query"]`；
+   - 阿里与腾讯双国内直连高效 UDP 在 2~5ms 内竞速秒解，超大报文或网络劣化时由纯 IP DoH 兜底（消除 doh.pub 等域名式 DoH 在 bootstrap 时引发的 A/AAAA 预解析死循环），彻底消除 TCP 握手队列占满时的 DoH 单点超时与解析挂起。
 2. **系统直连 DNS 健壮性加固**：
    - `direct-nameserver` 配置为：`["223.5.5.5", "119.29.29.29", "system"]`，彻底解除对 Windows WinSock 单点解析的死绑。
 3. **主配置入口显式禁用 IPv6**：

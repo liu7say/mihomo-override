@@ -9,7 +9,7 @@
    - **铁律**：严禁在生产环境冒进切换为明文 HTTP 80 测速。商业中转反代服务器（Nginx/HAProxy）在响应 HTTP 80 204 短连接后会主动 FIN/RST 掐断 TCP，导致连接池复用崩溃、内核频繁抛出 `use of closed network connection` 并在快速测速时爆发超时；且明文 HTTP 会引发 Mihomo 官方强烈劫持告警（160+ 条警告）。高可靠的 HTTPS 端到端探测是真实可用性检验的唯一工业标准。
 
 2. **代理解析与直连 DNS 健壮性**：
-   - 主 `nameserver` 与 `proxy-server-nameserver` 必须严格遵循 **“大陆直连高效双 UDP 优先 + 双 DoH 兜底”** 顺序：`["223.5.5.5", "119.29.29.29", "https://223.5.5.5/dns-query", "https://doh.pub/dns-query"]`，兼顾秒级竞速解析与超大报文防截断，消除 TCP 握手队列占满导致的 DoH 单点超时；
+   - 主 `nameserver` 与 `proxy-server-nameserver` 必须严格遵循 **“大陆直连高效双 UDP 优先 + 单纯 IP DoH 兜底”** 顺序：`["223.5.5.5", "119.29.29.29", "https://223.5.5.5/dns-query"]`，消除域名式 DoH（如 doh.pub）在 bootstrap 时引发的域名预解析死循环，兼顾秒级竞速解析与超大报文防截断；
    - `direct-nameserver` 必须配置为：`["223.5.5.5", "119.29.29.29", "system"]`，消除仅依赖 Windows WinSock 单点解析的瞬断风险。
 
 3. **顶层强制关闭 IPv6 幽灵重试延时**：

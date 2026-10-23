@@ -1081,17 +1081,17 @@ function main(config) {
       "use-system-hosts": true,
       "respect-rules": false,
       "default-nameserver": ["223.5.5.5", "119.29.29.29"],
+      // 主 nameserver：大陆直连双 UDP 竞速 + 纯 IP DoH 兜底（消除 doh.pub 域名预解析死循环）
       nameserver: [
         "223.5.5.5",
         "119.29.29.29",
         "https://223.5.5.5/dns-query",
-        "https://doh.pub/dns-query",
       ],
+      // 代理服务器域名解析：同构保障，杜绝节点域名预解析阻塞
       "proxy-server-nameserver": [
         "223.5.5.5",
         "119.29.29.29",
         "https://223.5.5.5/dns-query",
-        "https://doh.pub/dns-query",
       ],
       "direct-nameserver": [
         "223.5.5.5",
@@ -1352,12 +1352,12 @@ def self_check_js(js_text: str) -> None:
         raise ValueError("【严重错误】JS 覆写缺少标准 https 测速 URL！")
     if "config.ipv6 = false;" not in js_text:
         raise ValueError("【严重错误】JS 覆写缺少顶层 config.ipv6 = false 禁用语句！")
-    if not re.search(r'"proxy-server-nameserver":\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"https://223\.5\.5\.5/dns-query",\s*"https://doh\.pub/dns-query",?\s*\]', js_text):
+    if not re.search(r'"proxy-server-nameserver":\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"https://223\.5\.5\.5/dns-query",?\s*\]', js_text):
         raise ValueError("【严重错误】JS 覆写缺少正确的 proxy-server-nameserver 顺序！")
     if not re.search(r'"direct-nameserver":\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"system",?\s*\]', js_text):
         raise ValueError("【严重错误】JS 覆写缺少高可用 direct-nameserver 配置！")
-    if not re.search(r'nameserver:\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"https://223\.5\.5\.5/dns-query",\s*"https://doh\.pub/dns-query",?\s*\]', js_text):
-        raise ValueError("【严重错误】JS 覆写缺少双 UDP 优先 + 双 DoH 兜底的高可用 nameserver！")
+    if not re.search(r'nameserver:\s*\[\s*"223\.5\.5\.5",\s*"119\.29\.29\.29",\s*"https://223\.5\.5\.5/dns-query",?\s*\]', js_text):
+        raise ValueError("【严重错误】JS 覆写缺少双 UDP 优先 + 单 IP DoH 兜底的高可用 nameserver！")
     if "autoGroupName" in js_text:
         raise ValueError("【严重错误】JS 覆写残留向地区组动态追加 autoGroupName 的有毒逻辑！")
     if "hasNodes" not in js_text:

@@ -289,12 +289,12 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     for pd in CAPTIVE_PORTAL_DOMAINS:
         assert pd in fake_filters, f"✘ [{tier}] 连通性探测域名 {pd} 未在 Fake-IP 放行列表中！"
     assert not any("connectivitycheck.gstatic.com" in f for f in fake_filters), f"✘ [{tier}] Google gstatic 域名未被排除在 Fake-IP 绕过列表外！"
+    # 验证代理服务器专用 nameserver：双 UDP 竞速 + 单 IP DoH 兜底（彻底剔除 doh.pub 消除域名解析隐式依赖）
     assert res["proxyServerNameserver"] == [
         "223.5.5.5",
         "119.29.29.29",
         "https://223.5.5.5/dns-query",
-        "https://doh.pub/dns-query",
-    ], f"✘ [{tier}] proxy-server-nameserver 顺序或内容未优化为双 UDP 优先 + 双 DoH 兜底: {res['proxyServerNameserver']}"
+    ], f"✘ [{tier}] proxy-server-nameserver 顺序或内容未优化为双 UDP 优先 + 单 IP DoH 兜底: {res['proxyServerNameserver']}"
     assert res["directNameserver"] == [
         "223.5.5.5",
         "119.29.29.29",
@@ -302,12 +302,12 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     ], f"✘ [{tier}] direct-nameserver 未加固为双 UDP + system 兜底: {res['directNameserver']}"
     assert res["ipv6"] is False, f"✘ [{tier}] 顶层 config.ipv6 未显式设置为 false: {res['ipv6']}"
     assert res["emptyIpv6"] is False, f"✘ [{tier}] 空输入时顶层 config.ipv6 未显式设置为 false: {res['emptyIpv6']}"
+    # 验证主 nameserver：双 UDP 竞速 + 单 IP DoH 兜底
     assert res["nameserver"] == [
         "223.5.5.5",
         "119.29.29.29",
         "https://223.5.5.5/dns-query",
-        "https://doh.pub/dns-query",
-    ], f"✘ [{tier}] nameserver 未配置为双 UDP 优先 + 双 DoH 兜底: {res['nameserver']}"
+    ], f"✘ [{tier}] nameserver 未配置为双 UDP 优先 + 单 IP DoH 兜底: {res['nameserver']}"
 
     # 地区策略组属地纯净性检查 (严禁将全局「自动选择」等动态组或直连「DIRECT」注入地区组，消除 33ms 延迟劫持与直连断网)
     for rg in res.get("regionGroupProxies", []):

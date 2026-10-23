@@ -1897,17 +1897,17 @@ function main(config) {
       "use-system-hosts": true,
       "respect-rules": false,
       "default-nameserver": ["223.5.5.5", "119.29.29.29"],
+      // 主 nameserver：大陆直连双 UDP 竞速 + 纯 IP DoH 兜底（消除 doh.pub 域名预解析死循环）
       nameserver: [
         "223.5.5.5",
         "119.29.29.29",
         "https://223.5.5.5/dns-query",
-        "https://doh.pub/dns-query",
       ],
+      // 代理服务器域名解析：同构保障，杜绝节点域名预解析阻塞
       "proxy-server-nameserver": [
         "223.5.5.5",
         "119.29.29.29",
         "https://223.5.5.5/dns-query",
-        "https://doh.pub/dns-query",
       ],
       "direct-nameserver": [
         "223.5.5.5",
