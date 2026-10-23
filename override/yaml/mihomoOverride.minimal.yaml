@@ -1,5 +1,5 @@
 # ==========================================================================
-# SubBoost 规则体系 · mihomo 覆写版 (YAML rules: 双轨覆写)
+# mihomo-override 规则覆写体系 (YAML rules: 双轨覆写)
 # 由 scripts/gen_override.py 自动生成，请勿手动编辑。
 # 核心工程适配说明：
 #   · 规则集走 jsdelivr 镜像，全量带 proxy: 节点选择 杜绝静默失败

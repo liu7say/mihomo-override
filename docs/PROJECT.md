@@ -16,7 +16,7 @@
   - **三档独立预设并行输出**：由 `scripts/gen_override.py` 自动化并行编译 `minimal` (16组)、`standard` (23组)、`full` (41组) 三套完全独立的 JS 与 YAML 覆写。
   - **职责一体化流水线**：单脚本内部完成「Fake-IP 与独立 Nameserver 注入 → 垃圾与高倍率节点清洗与级联引用维护 → 策略组与规则集装配 → 拓扑保序与引用完整性保障」。
   - **敏感配置安全物理隔离**：个人工作内网信息存放于 `config/private_work.json`（已加入 `.gitignore`），代码库仅公开脱敏模板 `config/private_work.example.json`。
-  - **双轨后备保障**：同步输出 `override/yaml/customSubBoost.{minimal,standard,full}.yaml`，供纯 YAML 客户端备用。
+  - **双轨后备保障**：同步输出 `override/yaml/mihomoOverride.{minimal,standard,full}.yaml`，供纯 YAML 客户端备用。
 
 ### 1.2 运行时核心指标
 
@@ -35,17 +35,17 @@
 ### 2.1 支持客户端清单
 
 1. **Clash Party / Sparkle**：
-   - 支持多覆写与单覆写。推荐单覆写挂载 `override/js/customSubBoost.{tier}.js`（ext: `js`），简化维护成本。
+   - 支持多覆写与单覆写。推荐单覆写挂载 `override/js/mihomoOverride.{tier}.js`（ext: `js`），简化维护成本。
 2. **Flclash**：
    - 基于 Flutter 开发的现代跨平台客户端（Windows / macOS / Linux / Android / iOS）。
    - 内置纯 JS 引擎沙箱（基于 QuickJS 或 JavaScriptCore），提供单入口 `function main(config) { return config; }`。
-   - `customSubBoost.js` 零外部依赖，直接全文复制到 Flclash 覆写脚本区即可即刻运行。
+   - `mihomoOverride.js` 零外部依赖，直接全文复制到 Flclash 覆写脚本区即可即刻运行。
 3. **bettbox (Flclash Fork)**：
    - 继承 Flclash 核心机制，完全通用。
 
 ### 2.2 跨平台 ECMAScript 语法约束与空安全
 
-为确保在移动端（Android / iOS）及不同嵌入式 JS 引擎中 100% 稳定运行，`customSubBoost.js` 严格恪守以下规范：
+为确保在移动端（Android / iOS）及不同嵌入式 JS 引擎中 100% 稳定运行，`mihomoOverride.js` 严格恪守以下规范：
 
 1. **纯标准 ECMAScript 2020**：
    - 严禁使用 Node.js 专属全局对象与模块（如 `process`, `Buffer`, `fs`, `path`, `require`）。
@@ -132,10 +132,10 @@ graph TD
                                          ▼                                           ▼
                             [build_all_in_one_js()]                     [build_yaml()]
                                          ▼                                           ▼
-                        override/js/customSubBoost.{tier}.js        override/yaml/customSubBoost.{tier}.yaml
+                        override/js/mihomoOverride.{tier}.js        override/yaml/mihomoOverride.{tier}.yaml
                                          │
                                          ▼ (脱敏样例)
-                    override/example/customSubBoost.{tier}.example.js
+                    override/example/mihomoOverride.{tier}.example.js
 ```
 
 ### 5.2 自动化质量门禁 (CI Verification Pipeline)

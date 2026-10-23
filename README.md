@@ -7,7 +7,7 @@
 适用于 **Clash Party**、**Flclash**、**bettbox** 及 **Sparkle** 等基于 **Mihomo (Clash.Meta)** 内核的全平台客户端
 
 [![Release](https://img.shields.io/github/v/release/liu7say/mihomo-override?style=flat-square&color=blue)](https://github.com/liu7say/mihomo-override/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=flat-square)](LICENSE)
 [![Kernel](https://img.shields.io/badge/Kernel-Mihomo%20Meta-orange?style=flat-square)](https://github.com/MetaCubeX/mihomo)
 [![CI Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/liu7say/mihomo-override/actions)
 
@@ -56,7 +56,7 @@
 ### 方案 A：Flclash / bettbox (跨平台最简推荐)
 
 1. 打开客户端设置 -> **配置覆写 (Script / Override)** 或进入脚本编辑区；
-2. 打开本仓库对应档位的脱敏模板（如 [override/example/customSubBoost.standard.example.js](override/example/customSubBoost.standard.example.js)）；
+2. 打开本仓库对应档位的脱敏模板（如 [override/example/mihomoOverride.standard.example.js](override/example/mihomoOverride.standard.example.js)）；
 3. **全选复制代码**，粘贴到客户端脚本输入框中；
 4. （可选）在脚本开头的 `CONFIG` 对象中按需调整参数（如最大节点倍率）；
 5. 保存并更新配置，立即生效！
@@ -64,21 +64,21 @@
 ### 方案 B：Clash Party / Sparkle (桌面端推荐)
 
 1. 将所选档位的脚本复制到客户端本地覆写目录：
-   - 复制源文件：`override/example/customSubBoost.standard.example.js`
-   - 建议重命名为：%APPDATA%\mihomo-party\override\customSubBoost.standard.js
+   - 复制源文件：`override/example/mihomoOverride.standard.example.js`
+   - 建议重命名为：%APPDATA%\mihomo-party\override\mihomoOverride.standard.js
 2. 打开客户端「覆写」管理面板，新建覆写项：
-   - **名称**：`SubBoost 标准版覆写`
+   - **名称**：`Mihomo 标准版覆写`
    - **类型**：`JavaScript` (扩展名: `js`)
-   - **ID**：`customSubBoost.standard`
+   - **ID**：`mihomoOverride.standard`
    - **全局生效 (Global)**：勾选
 3. 单一脚本闭环接管 DNS、节点清洗与分流装配。
 
 ### 方案 C：仅支持 YAML 的客户端 (双轨备用)
 
 如果客户端环境不支持 JavaScript 执行，可直接挂载对应档位的纯 YAML 覆写：
-- 极简版：`override/yaml/customSubBoost.minimal.yaml`
-- 标准版：`override/yaml/customSubBoost.standard.yaml`
-- 全量版：`override/yaml/customSubBoost.full.yaml`
+- 极简版：`override/yaml/mihomoOverride.minimal.yaml`
+- 标准版：`override/yaml/mihomoOverride.standard.yaml`
+- 全量版：`override/yaml/mihomoOverride.full.yaml`
 
 ---
 
@@ -133,17 +133,17 @@ const CONFIG = {
 │   └── PERFORMANCE.md                 深度网络性能调优与冷启动基准测试报告
 ├── override/
 │   ├── js/                            [本地私有产物] 已注入真实内网配置 (整目录 gitignore 保护)
-│   │   ├── customSubBoost.minimal.js
-│   │   ├── customSubBoost.standard.js
-│   │   └── customSubBoost.full.js
+│   │   ├── mihomoOverride.minimal.js
+│   │   ├── mihomoOverride.standard.js
+│   │   └── mihomoOverride.full.js
 │   ├── example/                       [公开脱敏模板] 纯净脱敏样例 (Git 追踪，供开源分享)
-│   │   ├── customSubBoost.minimal.example.js
-│   │   ├── customSubBoost.standard.example.js
-│   │   └── customSubBoost.full.example.js
+│   │   ├── mihomoOverride.minimal.example.js
+│   │   ├── mihomoOverride.standard.example.js
+│   │   └── mihomoOverride.full.example.js
 │   └── yaml/                          [双轨纯 YAML] 传统规则追加备用 (Git 追踪)
-│       ├── customSubBoost.minimal.yaml
-│       ├── customSubBoost.standard.yaml
-│       └── customSubBoost.full.yaml
+│       ├── mihomoOverride.minimal.yaml
+│       ├── mihomoOverride.standard.yaml
+│       └── mihomoOverride.full.yaml
 └── scripts/
     ├── gen_override.py                核心生成器：读取配置并并行渲染 3 大档位 JS 与 YAML
     ├── test_js_override.py            自动化测试：Node.js 运行时 10 项核心断言沙箱套件
@@ -216,4 +216,4 @@ python scripts/nest_check.py          # 策略组 DAG 拓扑无环检测 (0 闭�
 
 ## 开源许可证
 
-本项目基于 [MIT License](LICENSE) 协议开源。
+本项目基于 [GNU General Public License v3.0 (GPL-3.0)](LICENSE) 协议开源。

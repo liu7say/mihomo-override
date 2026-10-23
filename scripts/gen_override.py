@@ -8,12 +8,12 @@ SubBoost 规则体系 · 全合一跨端覆写配置生成器
 bettbox 等 Mihomo (Clash.Meta) 内核客户端的覆写产物。
 
 【产物多档位输出 (Minimal / Standard / Full)】
-1. override/js/customSubBoost.{minimal,standard,full}.js (主力推荐 · 本地自用 All-in-One 覆写):
+1. override/js/mihomoOverride.{minimal,standard,full}.js (主力推荐 · 本地自用 All-in-One 覆写):
    - 彻底整合 DNS 统一治理 + 节点清洗引擎 + 策略组与规则集按场景分流
    - 注入个人私有内网工作配置，受 .gitignore 严密隔离保护
-2. override/example/customSubBoost.{minimal,standard,full}.example.js (公开脱敏示例模板):
+2. override/example/mihomoOverride.{minimal,standard,full}.example.js (公开脱敏示例模板):
    - 永不包含个人敏感配置，供 Git 追踪与社区分享
-3. override/yaml/customSubBoost.{minimal,standard,full}.yaml (双轨备用 · 纯 YAML 覆写):
+3. override/yaml/mihomoOverride.{minimal,standard,full}.yaml (双轨备用 · 纯 YAML 覆写):
    - 遵循 rules+: 追加语义，供偏好传统多覆写模式的用户使用
 
 【设计哲学与铁律】
@@ -688,12 +688,12 @@ def q(text: str) -> str:
 
 
 def build_yaml(groups: list[dict], providers: dict, pre_game: list[str], subboost_rules: list[str]) -> str:
-    """YAML 渲染器：组装标准的 customSubBoost.yaml 覆写产物。"""
+    """YAML 渲染器：组装标准的 mihomoOverride.yaml 覆写产物。"""
     out = io.StringIO()
     w = out.write
 
     w("# ==========================================================================\n")
-    w("# SubBoost 规则体系 · mihomo 覆写版 (YAML rules: 双轨覆写)\n")
+    w("# mihomo-override 规则覆写体系 (YAML rules: 双轨覆写)\n")
     w("# 由 scripts/gen_override.py 自动生成，请勿手动编辑。\n")
     w("# 核心工程适配说明：\n")
     w("#   · 规则集走 jsdelivr 镜像，全量带 proxy: 节点选择 杜绝静默失败\n")
@@ -1463,8 +1463,8 @@ def main() -> None:
 
         # 1. 构建与写出 JS 产物
         if not args.yaml_only:
-            js_path = OVERRIDE_JS_DIR / f"customSubBoost.{tier}.js"
-            example_js_path = OVERRIDE_EXAMPLE_DIR / f"customSubBoost.{tier}.example.js"
+            js_path = OVERRIDE_JS_DIR / f"mihomoOverride.{tier}.js"
+            example_js_path = OVERRIDE_EXAMPLE_DIR / f"mihomoOverride.{tier}.example.js"
 
             # 生成本地直接开箱即用版（注入个人工作内网信息）
             js_text = build_all_in_one_js(
@@ -1493,7 +1493,7 @@ def main() -> None:
 
         # 2. 构建与写出 YAML 产物
         if not args.js_only:
-            yaml_path = OVERRIDE_YAML_DIR / f"customSubBoost.{tier}.yaml"
+            yaml_path = OVERRIDE_YAML_DIR / f"mihomoOverride.{tier}.yaml"
             yaml_text = build_yaml(groups, providers, pre_game, subboost_rules)
             self_check_yaml(yaml_text)
             yaml_path.write_text(yaml_text, encoding="utf-8")

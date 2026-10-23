@@ -73,30 +73,32 @@ jobs:
       - name: 创建 GitHub Release 并上传资产
         uses: softprops/action-gh-release@v2
         with:
-          name: "SubBoost Mihomo Override ${{ github.ref_name }}"
+          name: "Mihomo Override ${{ github.ref_name }}"
           draft: false
           prerelease: false
           generate_release_notes: true
           files: |
             dist/*
           body: |
-            ## SubBoost All-in-One 覆写体系 ${{ github.ref_name }} 正式发布
+            ## Mihomo Override 规则覆写体系 ${{ github.ref_name }} 正式发布
 
-            适用于 **Clash Party**、**Flclash**、**bettbox** 及 **Sparkle** 等基于 Mihomo (Clash.Meta) 内核客户端的工业级全合一规则覆写与双轨配置体系。
+            适用于 **Flclash**、**Clash Party**、**bettbox** 及 **Sparkle** 等基于 Mihomo (Clash.Meta) 内核客户端的高性能全合一规则覆写与双轨配置体系。
+
+            > **说明**：本项目为独立维护的 Mihomo 覆写体系（参考并借鉴 SubBoost / ACL4SSR 分流架构），非 SubBoost 官方版本。采用 GPL-3.0 协议开源。
 
             ---
 
             ### 本次发布资产 (Assets 清单)
 
             #### 1. 独立 All-in-One JS 覆写模板 (推荐：复制即用，已脱敏)
-            - **`customSubBoost.minimal.example.js`**：【极简版】16 策略组, 12 规则集, 适合轻量办公与省电
-            - **`customSubBoost.standard.example.js`**：【标准版】23 策略组, 24 规则集, 日常黄金主流推荐
-            - **`customSubBoost.full.example.js`**：【全量版】41 策略组, 94 规则集, 极客细粒度分流
+            - **`mihomoOverride.minimal.example.js`**：【极简版】16 策略组, 12 规则集, 适合轻量办公与省电
+            - **`mihomoOverride.standard.example.js`**：【标准版】23 策略组, 24 规则集, 日常黄金主流推荐
+            - **`mihomoOverride.full.example.js`**：【全量版】41 策略组, 94 规则集, 极客细粒度分流
 
             #### 2. 独立纯 YAML 覆写备份 (供仅支持 YAML 的客户端使用)
-            - **`customSubBoost.minimal.yaml`**：【极简版】双轨纯 YAML 覆写
-            - **`customSubBoost.standard.yaml`**：【标准版】双轨纯 YAML 覆写
-            - **`customSubBoost.full.yaml`**：【全量版】双轨纯 YAML 覆写
+            - **`mihomoOverride.minimal.yaml`**：【极简版】双轨纯 YAML 覆写
+            - **`mihomoOverride.standard.yaml`**：【标准版】双轨纯 YAML 覆写
+            - **`mihomoOverride.full.yaml`**：【全量版】双轨纯 YAML 覆写
 
             #### 3. 完整整合包
             - **`mihomo-override-${{ github.ref_name }}.zip`**：包含上述全部模板与使用说明。

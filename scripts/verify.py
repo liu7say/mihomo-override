@@ -5,8 +5,8 @@ Mihomo 订阅与覆写内核合法性全量验证工具 (verify.py)
 
 【功能定位】
 1. 双轨并行验证：
-   - 模式 A (All-in-One JS 覆写): 将 4 大真实订阅管道送入 override/customSubBoost.js 运行 main(config)
-   - 模式 B (双轨 YAML 覆写): 采用 deep_merge 将 override/customSubBoost.yaml 覆写至底稿
+   - 模式 A (All-in-One JS 覆写): 将 4 大真实订阅管道送入 override/js/mihomoOverride.js 运行 main(config)
+   - 模式 B (双轨 YAML 覆写): 采用 deep_merge 将 override/yaml/mihomoOverride.yaml 覆写至底稿
 2. 真实内核预检:
    - 自动复制 MMDB/Metadb 与本地 ruleset 缓存到测试沙箱
    - 调用本地真实 mihomo-test.exe -t 进行全量语法与分流连通性测试
@@ -229,15 +229,15 @@ def verify_tier(tier: str, discovered: dict[str, tuple[str, dict]]) -> list[tupl
     """针对单个预设档位，执行 JS 与 YAML 双轨真实订阅测试。"""
     print(f"\n>>> 正在验证档位: [{tier.upper()}] <<<")
     # 优先检测子目录 override/js/，回退检测 override/example/，再兼容旧平铺路径
-    js_override = REPO_ROOT / "override" / "js" / f"customSubBoost.{tier}.js"
+    js_override = REPO_ROOT / "override" / "js" / f"mihomoOverride.{tier}.js"
     if not js_override.exists():
-        js_override = REPO_ROOT / "override" / "example" / f"customSubBoost.{tier}.example.js"
+        js_override = REPO_ROOT / "override" / "example" / f"mihomoOverride.{tier}.example.js"
     if not js_override.exists():
-        js_override = REPO_ROOT / "override" / f"customSubBoost.{tier}.js"
+        js_override = REPO_ROOT / "override" / f"mihomoOverride.{tier}.js"
 
-    yaml_override = REPO_ROOT / "override" / "yaml" / f"customSubBoost.{tier}.yaml"
+    yaml_override = REPO_ROOT / "override" / "yaml" / f"mihomoOverride.{tier}.yaml"
     if not yaml_override.exists():
-        yaml_override = REPO_ROOT / "override" / f"customSubBoost.{tier}.yaml"
+        yaml_override = REPO_ROOT / "override" / f"mihomoOverride.{tier}.yaml"
 
     failures = []
 

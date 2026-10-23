@@ -5,10 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mihomo-override"
 version = "1.0.0"
-description = "适用于 clash-party / sparkle 等 mihomo 内核的高性能 SubBoost 体系覆写生成器与验证套件"
+description = "适用于 FlClash / Clash Party 等 mihomo 内核的高性能规则覆写生成器与验证套件"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = { text = "GPL-3.0-or-later" }
 authors = [
     { name = "liu7say" }
 ]

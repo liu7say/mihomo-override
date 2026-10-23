@@ -7,7 +7,7 @@
 Engineered for **Clash Party**, **Flclash**, **bettbox**, and **Sparkle** clients powered by the **Mihomo (Clash.Meta)** kernel.
 
 [![Release](https://img.shields.io/github/v/release/liu7say/mihomo-override?style=flat-square&color=blue)](https://github.com/liu7say/mihomo-override/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=flat-square)](LICENSE)
 [![Kernel](https://img.shields.io/badge/Kernel-Mihomo%20Meta-orange?style=flat-square)](https://github.com/MetaCubeX/mihomo)
 [![CI Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/liu7say/mihomo-override/actions)
 
@@ -56,7 +56,7 @@ Download pre-built sanitized overrides directly from the **[GitHub Releases](htt
 ### Option A: Flclash / bettbox (Cross-platform Recommended)
 
 1. Navigate to client **Settings** -> **Script / Override** editor;
-2. Open the desired sanitized template (e.g., [override/example/customSubBoost.standard.example.js](override/example/customSubBoost.standard.example.js));
+2. Open the desired sanitized template (e.g., [override/example/mihomoOverride.standard.example.js](override/example/mihomoOverride.standard.example.js));
 3. **Select all and copy** the code into the script editor;
 4. *(Optional)* Adjust runtime parameters in the top `CONFIG` block (e.g., multiplier threshold);
 5. Save and reload the profile.
@@ -64,21 +64,21 @@ Download pre-built sanitized overrides directly from the **[GitHub Releases](htt
 ### Option B: Clash Party / Sparkle (Desktop)
 
 1. Copy the template script into the client's local override directory:
-   - Source: `override/example/customSubBoost.standard.example.js`
-   - Destination: `%APPDATA%\mihomo-party\override\customSubBoost.standard.js`
+   - Source: `override/example/mihomoOverride.standard.example.js`
+   - Destination: `%APPDATA%\mihomo-party\override\mihomoOverride.standard.js`
 2. Open the **Overrides** management panel and register a new item:
-   - **Name**: `SubBoost Standard Override`
+   - **Name**: `Mihomo Standard Override`
    - **Type**: `JavaScript` (ext: `js`)
-   - **ID**: `customSubBoost.standard`
+   - **ID**: `mihomoOverride.standard`
    - **Global**: Checked
 3. The script handles DNS takeover, node sanitization, and routing in a unified pass.
 
 ### Option C: YAML-only Clients (Dual-track Fallback)
 
 If your client environment does not support JavaScript execution, mount the corresponding pure YAML override directly:
-- Minimal: `override/yaml/customSubBoost.minimal.yaml`
-- Standard: `override/yaml/customSubBoost.standard.yaml`
-- Full: `override/yaml/customSubBoost.full.yaml`
+- Minimal: `override/yaml/mihomoOverride.minimal.yaml`
+- Standard: `override/yaml/mihomoOverride.standard.yaml`
+- Full: `override/yaml/mihomoOverride.full.yaml`
 
 ---
 
@@ -133,17 +133,17 @@ const CONFIG = {
 │   └── PERFORMANCE.md                 In-depth benchmark analysis on cold start and DNS latency
 ├── override/
 │   ├── js/                            [Local Private] Injected with personal intranet config
-│   │   ├── customSubBoost.minimal.js
-│   │   ├── customSubBoost.standard.js
-│   │   └── customSubBoost.full.js
+│   │   ├── mihomoOverride.minimal.js
+│   │   ├── mihomoOverride.standard.js
+│   │   └── mihomoOverride.full.js
 │   ├── example/                       [Public Templates] Sanitized overrides for open-source sharing
-│   │   ├── customSubBoost.minimal.example.js
-│   │   ├── customSubBoost.standard.example.js
-│   │   └── customSubBoost.full.example.js
+│   │   ├── mihomoOverride.minimal.example.js
+│   │   ├── mihomoOverride.standard.example.js
+│   │   └── mihomoOverride.full.example.js
 │   └── yaml/                          [Dual-track YAML] Pure YAML rule overrides for legacy clients
-│       ├── customSubBoost.minimal.yaml
-│       ├── customSubBoost.standard.yaml
-│       └── customSubBoost.full.yaml
+│       ├── mihomoOverride.minimal.yaml
+│       ├── mihomoOverride.standard.yaml
+│       └── mihomoOverride.full.yaml
 └── scripts/
     ├── gen_override.py                Core generator: compiles 3-tier JS and YAML outputs
     ├── test_js_override.py            Automated test suite: 10 Node.js runtime assertions
@@ -192,4 +192,4 @@ Special thanks to all community contributors in the Mihomo (Clash.Meta) routing 
 
 ## License
 
-This project is open-source under the [MIT License](LICENSE).
+This project is open-source under the [GNU General Public License v3.0 (GPL-3.0)](LICENSE).
