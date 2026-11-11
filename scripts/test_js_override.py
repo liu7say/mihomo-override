@@ -92,6 +92,7 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
         {{ name: "🇸🇬 狮城 01 优质专线", type: "ss", server: "1.1.1.21", port: 443 }}, // 狮城正常节点
         {{ name: "🇹🇼 台湾 01 优质专线", type: "ss", server: "1.1.1.22", port: 443 }}, // 台湾正常节点
         {{ name: "🇰🇷 韩国 01 优质专线", type: "ss", server: "1.1.1.23", port: 443 }}, // 韩国正常节点
+        {{ name: "🇩🇪 德国 01", type: "ss", server: "1.1.1.24", port: 443 }}, // 其他国家有真实匹配节点
       ],
       "proxy-groups": [
         {{
@@ -197,6 +198,53 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     CONFIG.dnsFallbackProxy = "节点选择";
     const fallbackOutput = main(JSON.parse(JSON.stringify(mockInput)));
     CONFIG.enableDnsFallback = false;
+
+    // 边界回归：遍历全部输出组检查引用，避免只验证某个已消失的组。
+    const assert = require('assert');
+    function checkReferences(out) {{
+      const targets = new Set(['DIRECT', 'REJECT', 'PASS', 'COMPATIBLE',
+        ...out.proxies.map(p => p.name), ...out['proxy-groups'].map(g => g.name)]);
+      for (const group of out['proxy-groups']) {{
+        for (const target of group.proxies || []) assert(targets.has(target), '死链: ' + target);
+      }}
+    }}
+    const hk = {{name: '香港 01', type: 'ss', server: '127.0.0.1', port: 443}};
+    const provider = {{remote: {{type: 'file', path: 'remote.yaml'}}}};
+    const onlyHk = main({{proxies: [hk]}});
+    const onlyHkNames = onlyHk['proxy-groups'].map(g => g.name);
+    assert(onlyHkNames.includes('香港节点'));
+    for (const name of ['韩国节点', '日本节点', '其他国家']) assert(!onlyHkNames.includes(name));
+    checkReferences(onlyHk);
+    const withOther = main({{proxies: [hk, {{...hk, name: '德国 01'}}]}});
+    assert(withOther['proxy-groups'].some(g => g.name === '其他国家'));
+    checkReferences(withOther);
+    for (const proxies of [[], [hk]]) {{
+      const external = main({{proxies, 'proxy-providers': provider}});
+      assert.strictEqual(external['proxy-providers'], provider);
+      for (const name of ['香港节点', '日本节点', '美国节点', '狮城节点', '台湾节点', '韩国节点', '其他国家']) {{
+        const group = external['proxy-groups'].find(g => g.name === name);
+        assert(group && group['include-all'] === true, name + ' 外部节点池被误删');
+        assert(!group.proxies || group.proxies.length === 0);
+      }}
+      checkReferences(external);
+    }}
+    const malformed = main({{proxies: [null, undefined, 1, 'bad', {{}}, {{name: 42}}, {{name: '  '}}, hk]}});
+    assert.deepStrictEqual(malformed.proxies, [hk]);
+    checkReferences(malformed);
+    for (const input of [null, 1, 'bad', [], {{proxies: [null]}}]) checkReferences(main(input));
+    const allTrash = main({{proxies: [{{...hk, name: '到期: 2026-12-31'}}]}});
+    assert.strictEqual(allTrash.proxies.length, 0);
+    assert(!allTrash['proxy-groups'].some(g => g.name === '其他国家' || g.filter));
+    checkReferences(allTrash);
+    const stale = main({{proxies: [hk],
+      'proxy-groups': [{{name: '原订阅组', type: 'select', proxies: ['DIRECT']}}],
+      'rule-providers': {{old: {{type: 'http', url: 'https://example.com/old', proxy: '原订阅组'}}}}
+    }});
+    assert(!('old' in stale['rule-providers']));
+    for (const p of Object.values(stale['rule-providers'])) {{
+      assert(p.proxy === '节点选择');
+    }}
+    checkReferences(stale);
 
     console.log(JSON.stringify({{
       remainingProxies: remainingProxies,
@@ -434,7 +482,7 @@ def test_tier(tier: str, exp_groups: int, exp_providers: int) -> None:
     if idx_geocn != -1:
         assert idx_pipe < idx_geocn, f"✘ [{tier}] Steam Pipe 下载直连 (位次 {idx_pipe}) 必须在通用境外规则 geolocation-!cn (位次 {idx_geocn}) 之前！"
 
-    print(f"  [✔] {tier.upper()} 档位 18 项断言全部通过 (策略组 {res['groupsCount']} 组, 规则集 {res['providersCount']} 个, 规则链 {res['rulesCount']} 条)")
+    print(f"  [✔] {tier.upper()} 档位运行时断言与边界回归全部通过 (策略组 {res['groupsCount']} 组, 规则集 {res['providersCount']} 个, 规则链 {res['rulesCount']} 条)")
 
 
 def main() -> int:

@@ -29,7 +29,7 @@
 
 任何涉及规则、生成器或配置的修改，必须按序完成以下全套门禁校验：
 1. **生成并自检**：运行 `python scripts/gen_override.py`，确保内置的 `self_check_yaml` 与 `self_check_js` 全部断言通过；
-2. **沙箱断言测试**：运行 `python scripts/test_js_override.py`，确保 Node.js 10 项核心断言 100% 通过；
+2. **沙箱断言测试**：运行 `python scripts/test_js_override.py`，确保三档 Node.js 运行时断言与边界回归全部通过；
 3. **真实级联检测**：测试套件中严禁编写空对空伪断言（如引用已被覆盖替换的未定义组），必须真实遍历输出的全部策略组 `proxies` 数组检测死链；
 4. **DAG 拓扑核查**：运行 `python scripts/nest_check.py`，确保策略组全局最大嵌套深度 <= 3（健康阈值）且 0 闭环引用；
 5. **真实订阅验证**：运行 `python scripts/verify.py`，基于本地订阅底稿确保双轨模式下全部 PASS。

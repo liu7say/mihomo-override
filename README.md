@@ -41,11 +41,13 @@
 
 根据您的终端设备性能与实际分流需求，选择最适配的预设档位：
 
-| 预设档位 | 策略组数量 | 规则集数量 | 展开规则条数 | 内存开销 | 推荐适用设备与场景 |
+| 预设档位 | 策略组数量 | 规则集数量 | JS / YAML 规则数 | 内存开销 | 推荐适用设备与场景 |
 |---|:---:|:---:|:---:|:---:|---|
-| **Minimal (极简版)** | 16 个 | 12 个 | 59 条 | 约 25 MB | **移动端 / 电视盒子**：Android、iOS、Bettbox、智能电视，极致省电、轻量流畅 |
-| **Standard (标准版)** | 23 个 | 24 个 | 71 条 | 约 45 MB | **日常黄金主流推荐**：主流流媒体（YouTube/Netflix/Disney+）、Google、微软、AI服务 |
-| **Full (全量版)** | 41 个 | 94 个 | 141 条 | 约 75 MB | **桌面极客 / 软路由**：Windows、macOS、Linux，全域流媒体、多地区细粒度分流与游戏加速 |
+| **Minimal (极简版)** | 16 个 | 12 个 | 55 / 49 | 待实测 | **移动端 / 电视盒子**：Android、iOS、Bettbox、智能电视，极致省电、轻量流畅 |
+| **Standard (标准版)** | 23 个 | 24 个 | 67 / 61 | 待实测 | **日常黄金主流推荐**：主流流媒体（YouTube/Netflix/Disney+）、Google、微软、AI服务 |
+| **Full (全量版)** | 41 个 | 94 个 | 137 / 131 | 待实测 | **桌面极客 / 软路由**：Windows、macOS、Linux，全域流媒体、多地区细粒度分流与游戏加速 |
+
+规则数为默认公开配置；启用工作规则后会增加。策略组数量为静态定义数，JS 运行时会删除无节点地区组；外部节点池存在时保守保留。内存需区分 JS 进程与 Mihomo 内核，测量方法见 [性能说明](docs/PERFORMANCE.md)。
 
 ---
 
@@ -146,7 +148,7 @@ const CONFIG = {
 │       └── mihomoOverride.full.yaml
 └── scripts/
     ├── gen_override.py                核心生成器：读取配置并并行渲染 3 大档位 JS 与 YAML
-    ├── test_js_override.py            自动化测试：Node.js 运行时 10 项核心断言沙箱套件
+    ├── test_js_override.py            自动化测试：Node.js 运行时与边界回归套件
     ├── nest_check.py                  策略组拓扑有向图无环检测与最大深度核查
     ├── verify.py                      内核实测：基于本地真实机场订阅底稿进行语法与分流测试
     ├── check_icons.py                 Qure Color 图标集存在性与语义替代校验
@@ -169,8 +171,11 @@ pip install -r requirements.txt
 python scripts/gen_override.py
 
 # 3. 运行全套质量门禁断言测试
-python scripts/test_js_override.py    # Node.js 运行时 10 项功能与引用完整性测试
-python scripts/nest_check.py          # 策略组 DAG 拓扑无环检测 (0 闭环, 深度 <= 1)
+python scripts/test_js_override.py    # Node.js 运行时、混合节点池与引用完整性测试
+python scripts/nest_check.py          # 策略组 DAG 拓扑无环检测 (0 闭环, 深度 <= 3，当前静态产物为 2)
+python scripts/verify.py              # 需要本地 Mihomo；缺少时退出失败
+python scripts/test_verify.py         # 内核缺失时的 FAIL / SKIP 回归测试
+python scripts/benchmark_override.py  # 离线 JS 性能基准，输出 JSON
 ```
 
 ---
@@ -217,3 +222,11 @@ python scripts/nest_check.py          # 策略组 DAG 拓扑无环检测 (0 闭�
 ## 开源许可证
 
 本项目基于 [GNU General Public License v3.0 (GPL-3.0)](LICENSE) 协议开源。
+
+### 订阅兼容与验证边界
+
+JS 覆写保留 `proxy-providers`。存在外部节点池时，脚本无法预知其节点，因而保留全部地区组；仅使用内联节点时，六个核心地区与“其他国家”均按实际匹配清理。无效的节点结构（如 `null`、缺少名称或空白名称）会被丢弃。
+
+覆写整体替换策略组、规则链和规则集声明，不保留订阅中已经不再使用的旧 `rule-providers`，避免其代理引用失效。
+
+`verify.py` 执行内核配置检查，不代表节点连通性验证；没有私人订阅时使用内建 Mock。缺少内核默认返回失败，仅显式传入 `--allow-missing-core` 时显示 SKIP 并成功退出，绝不计为 PASS。

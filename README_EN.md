@@ -41,11 +41,11 @@ Traditional rule overrides often suffer from fragile multi-file ordering depende
 
 Select the preset that best matches your client hardware and routing requirements:
 
-| Preset Tier | Proxy Groups | Rule Providers | Rule Entries | Memory Footprint | Recommended Devices & Use Cases |
+| Preset Tier | Proxy Groups | Rule Providers | JS / YAML Rules | Memory Footprint | Recommended Devices & Use Cases |
 |---|:---:|:---:|:---:|:---:|---|
-| **Minimal** | 16 | 12 | 55 | ~25 MB | **Mobile & TV Boxes**: Android, iOS, Bettbox, smart TVs; ultra-low power consumption and buttery smooth UI |
-| **Standard** | 23 | 24 | 67 | ~45 MB | **Recommended Daily Driver**: Mainstream streaming (YouTube, Netflix, Disney+), Google, Microsoft, and AI services |
-| **Full** | 41 | 94 | 137 | ~75 MB | **Desktop & Soft Routers**: Windows, macOS, Linux; comprehensive regional segregation and gaming acceleration |
+| **Minimal** | 16 | 12 | 55 / 49 | Not measured | **Mobile & TV Boxes**: Android, iOS, Bettbox, smart TVs; ultra-low power consumption and buttery smooth UI |
+| **Standard** | 23 | 24 | 67 / 61 | Not measured | **Recommended Daily Driver**: Mainstream streaming (YouTube, Netflix, Disney+), Google, Microsoft, and AI services |
+| **Full** | 41 | 94 | 137 / 131 | Not measured | **Desktop & Soft Routers**: Windows, macOS, Linux; comprehensive regional segregation and gaming acceleration |
 
 ---
 
@@ -146,7 +146,7 @@ const CONFIG = {
 │       └── mihomoOverride.full.yaml
 └── scripts/
     ├── gen_override.py                Core generator: compiles 3-tier JS and YAML outputs
-    ├── test_js_override.py            Automated test suite: 10 Node.js runtime assertions
+    ├── test_js_override.py            Node.js runtime and edge-case regression suite
     ├── nest_check.py                  Directed acyclic graph (DAG) cycle and depth verification
     ├── verify.py                      Live kernel validation against real subscription profiles
     ├── check_icons.py                 Qure icon set existence and semantic fallback auditing
@@ -169,8 +169,8 @@ pip install -r requirements.txt
 python scripts/gen_override.py
 
 # 3. Run automated quality gate test suites
-python scripts/test_js_override.py    # 10 runtime assertions in Node.js
-python scripts/nest_check.py          # DAG cycle check (0 cycles, max depth <= 1)
+python scripts/test_js_override.py    # Node.js runtime and edge-case regression assertions
+python scripts/nest_check.py          # DAG cycle check (0 cycles, max depth <= 3; current static depth: 2)
 ```
 
 ---
@@ -193,3 +193,9 @@ Special thanks to all community contributors in the Mihomo (Clash.Meta) routing 
 ## License
 
 This project is open-source under the [GNU General Public License v3.0 (GPL-3.0)](LICENSE).
+
+### Subscription and validation behavior
+
+Group counts above refer to static definitions. JS removes empty regional groups, including Other Countries, when only inline proxies are used. With external `proxy-providers`, all regional groups remain available because their nodes are not yet visible. Invalid proxy entries such as null or missing names are discarded. Old `rule-providers` are replaced together with the routing rules and groups. Rule counts above use the default public configuration; work rules add entries.
+
+Run `python scripts/verify.py` with Mihomo on PATH for kernel configuration checks. A missing kernel fails by default; `--allow-missing-core` explicitly reports SKIP instead of PASS. Without private profiles, built-in mock proxies are used; this does not test live connectivity. Run `python scripts/test_verify.py` for missing-kernel regression tests and `python scripts/benchmark_override.py` for offline JS timing and Node process peak RSS. These memory measurements do not measure the Mihomo core.

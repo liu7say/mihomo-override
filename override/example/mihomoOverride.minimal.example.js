@@ -477,8 +477,11 @@ function getMultiplier(name) {
 // ============================================================================
 function main(config) {
   // 1. 防御性空安全初始化（保证空配置或字段缺失时不发生未捕获异常）
-  config = config || {};
-  config.proxies = Array.isArray(config.proxies) ? config.proxies : [];
+  config = (config && typeof config === "object" && !Array.isArray(config)) ? config : {};
+  // 结构异常的节点不能进入清洗、地区匹配或名称索引。
+  config.proxies = Array.isArray(config.proxies) ? config.proxies.filter(p =>
+    p && typeof p === "object" && typeof p.name === "string" && p.name.trim().length > 0
+  ) : [];
   config["proxy-groups"] = Array.isArray(config["proxy-groups"]) ? config["proxy-groups"] : [];
   config["rule-providers"] = (config["rule-providers"] && typeof config["rule-providers"] === "object") ? config["rule-providers"] : {};
   config.rules = Array.isArray(config.rules) ? config.rules : [];
@@ -504,7 +507,6 @@ function main(config) {
   // ==========================================================================
   // 第一步：节点清洗引擎 (按 CONFIG 动态执行)
   // ==========================================================================
-  const removedNames = new Set();
   if (CONFIG.cleanTrashNodes || CONFIG.cleanHighMultiplier) {
     const originalProxies = config.proxies;
     const filteredProxies = originalProxies.filter(proxy => {
@@ -512,7 +514,6 @@ function main(config) {
 
       // 规则 A: 命中垃圾公告关键字，移除
       if (CONFIG.cleanTrashNodes && TRASH_REGEX.test(proxy.name)) {
-        removedNames.add(proxy.name);
         return false;
       }
 
@@ -520,7 +521,6 @@ function main(config) {
       if (CONFIG.cleanHighMultiplier) {
         const mult = getMultiplier(proxy.name);
         if (mult !== null && mult > CONFIG.maxMultiplier) {
-          removedNames.add(proxy.name);
           return false;
         }
       }
@@ -643,18 +643,22 @@ function main(config) {
   // ==========================================================================
   const rawGroups = JSON.parse(JSON.stringify(SUBBOOST_PROXY_GROUPS));
   const cleanProxies = config.proxies || [];
+  // 外部节点池在脚本执行时尚不可见，混合订阅也不能仅凭内联节点裁剪地区。
+  const hasExternalProviders = config["proxy-providers"] &&
+    typeof config["proxy-providers"] === "object" &&
+    Object.keys(config["proxy-providers"]).length > 0;
 
-  // 1. 扫描 6 核心地区策略组：若在已清洗节点池中物理节点数为 0，则物理剔除（不加入 groups 列表）
+  // 1. 扫描六个核心地区及“其他国家”：仅在节点池完整可见且无匹配时剔除。
   const groups = [];
   for (const group of rawGroups) {
-    if (group.type === "url-test" && group.filter) {
-      // 防御性安全底线：若当前配置完全未显式提供节点（如仅依赖外部 proxy-providers），保守保留所有地区组，避免误杀全量策略组
-      if (cleanProxies.length === 0) {
+    if ((group.type === "url-test" && group.filter) || group.name === "其他国家") {
+      // 存在外部节点池时，保留所有地区组供内核加载节点后动态过滤。
+      if (hasExternalProviders) {
         groups.push(group);
         continue;
       }
 
-      const cleanFilter = group.filter.replace(/^\(\?i\)/, "");
+      const cleanFilter = (group.filter || ".*").replace(/^\(\?i\)/, "");
       const cleanExclude = group["exclude-filter"] ? group["exclude-filter"].replace(/^\(\?i\)/, "") : null;
       let filterRe = null;
       let excludeRe = null;
@@ -729,7 +733,8 @@ function main(config) {
     }
   }
 
-  config["rule-providers"] = Object.assign({}, config["rule-providers"] || {}, ruleProviders);
+  // 规则链与策略组均整体替换，旧规则集已不再被引用；丢弃以免残留失效代理引用。
+  config["rule-providers"] = ruleProviders;
 
   // ==========================================================================
   // 第五步：全量分流规则链拼装 (First-Match-Win 严格保序)

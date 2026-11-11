@@ -5,13 +5,14 @@ Mihomo 订阅与覆写内核合法性全量验证工具 (verify.py)
 
 【功能定位】
 1. 双轨并行验证：
-   - 模式 A (All-in-One JS 覆写): 将 4 大真实订阅管道送入 override/js/mihomoOverride.js 运行 main(config)
-   - 模式 B (双轨 YAML 覆写): 采用 deep_merge 将 override/yaml/mihomoOverride.yaml 覆写至底稿
+   - 模式 A (All-in-One JS 覆写): 将本地订阅或内建 Mock 送入三档 JS 的 main(config)
+   - 模式 B (双轨 YAML 覆写): 采用 deep_merge 将三档 YAML 覆写至底稿
 2. 真实内核预检:
    - 自动复制 MMDB/Metadb 与本地 ruleset 缓存到测试沙箱
-   - 调用本地真实 mihomo-test.exe -t 进行全量语法与分流连通性测试
+   - 调用本地 Mihomo -t 检查配置合法性，不测试节点连通性
 """
 
+import argparse
 import json
 import os
 import re
@@ -200,8 +201,8 @@ def test_kernel_config(workdir: Path, config_data: dict, pid: str) -> tuple[bool
         encoding="utf-8",
     )
 
-    if not CORE_EXE.exists():
-        return True, "未检测到 mihomo-test.exe，跳过内核调用"
+    if not CORE_EXE.is_file():
+        return False, "未检测到 Mihomo 内核，配置未通过内核验证"
 
     proc = subprocess.run(
         [str(CORE_EXE), "-t", "-d", str(workdir), "-f", str(cfg)],
@@ -289,8 +290,11 @@ def verify_tier(tier: str, discovered: dict[str, tuple[str, dict]]) -> list[tupl
 
 
 def main() -> int:
-    # 支持命令行参数指定单一档位或 all (默认 all)
-    raw_arg = sys.argv[1].lower().lstrip("-") if len(sys.argv) > 1 else "all"
+    parser = argparse.ArgumentParser(description="JS/YAML 双轨 Mihomo 配置合法性验证（不测试节点连通性）")
+    parser.add_argument("tier", nargs="?", default="all", type=str.lower, choices=["all", "min", "minimal", "std", "standard", "full", "max"])
+    parser.add_argument("--allow-missing-core", action="store_true", help="允许缺少内核时报告 SKIP；不报告 PASS")
+    args = parser.parse_args()
+    raw_arg = args.tier
     if raw_arg in ("min", "minimal"):
         tiers = ["minimal"]
     elif raw_arg in ("std", "standard"):
@@ -301,6 +305,12 @@ def main() -> int:
         tiers = ["minimal", "standard", "full"]
 
     print("=" * 60)
+
+    if not CORE_EXE.is_file():
+        status = "SKIP" if args.allow_missing_core else "FAIL"
+        print(f"[{status}] 未找到 Mihomo 内核: {CORE_EXE}")
+        print("请安装 Mihomo 并加入 PATH，或放入 MIHOMO_PARTY_BASE/test/mihomo-test.exe。未执行内核验证。")
+        return 0 if args.allow_missing_core else 1
     print(f"Mihomo 订阅与覆写内核合法性全量验证 (目标档位: {', '.join(t.upper() for t in tiers)})")
     print("=" * 60)
 
